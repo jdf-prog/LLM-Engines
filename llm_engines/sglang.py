@@ -1,0 +1,113 @@
+import os
+import time
+import torch
+import urllib
+from pathlib import Path
+from typing import List
+
+from sglang import function, system, user, assistant, gen, set_default_backend, RuntimeEndpoint
+from .utils import SubprocessMonitor, ChatTokenizer
+worker_initiated = False
+sglang_workers = {}
+def launch_sglang_worker(
+    model_name: str,
+    num_gpus: int=None,
+    gpu_ids: List[int]=None,
+    port: int=34200,
+) -> str:
+    """
+    Launch a model worker and return the address
+    Args:
+        model_name: the model name to launch
+    Returns:
+        the address of the launched model
+    """
+    # python -m sglang.launch_server --model-path meta-llama/Meta-Llama-3-8B-Instruct --port 30000
+    worker_addr = f"http://127.0.0.1:{port}"
+    log_file = Path(os.path.abspath(__file__)).parent / "logs" / f"{model_name}.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    if not num_gpus:
+        num_gpus = torch.cuda.device_count()
+        print(f"Warning: num_gpus not provided, using {num_gpus} GPUs")
+    if not gpu_ids:
+        gpu_ids = list(range(num_gpus))
+    env = os.environ.copy()
+    # Set the CUDA_VISIBLE_DEVICES environment variable
+    env["CUDA_VISIBLE_DEVICES"] = ",".join([str(gpu_id) for gpu_id in gpu_ids])
+    
+    additonal_ports = [port+i for i in range(1, 9)]
+    proc = SubprocessMonitor([
+        "python3", "-m", "sglang.launch_server",
+        "--model-path", model_name,
+        "--host", "127.0.0.1",
+        "--port", str(port),
+        "--tp-size",  str(num_gpus) if num_gpus is not None else "1",
+        "--additional-ports"] + [str(port) for port in additonal_ports] + [
+        "--log-level", "warning",
+        "--disable-log-stats",
+    ], env=env)
+    print(f"Launching SGLang model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
+    sglang_workers[worker_addr] = proc
+    return worker_addr, proc
+
+@function
+def multi_turn_question(s, messages, system_message=None):
+    if system_message:
+        s += system(system_message)
+    for i, message in enumerate(messages):
+        if i % 2 == 0:
+            s += user(message)
+        else:
+            s += assistant(message)
+    s += assistant(gen("answer"))
+    
+@function
+def question(s, prompt):
+    s += prompt
+    s += gen("answer")
+    
+chat_tokenizers = {}
+def call_sglang_worker(messages:List[str], model_name, worker_addrs, conv_system_msg=None, **generate_kwargs) -> str:
+    global worker_initiated
+    global chat_tokenizers
+    
+    if model_name not in chat_tokenizers:
+        chat_tokenizers[model_name] = ChatTokenizer(model_name)
+    chat_tokenizer = chat_tokenizers[model_name]
+    prompt = chat_tokenizer(messages)
+    if not hasattr(call_sglang_worker, "worker_id_to_call"):
+        call_sglang_worker.worker_id_to_call = 0
+    call_sglang_worker.worker_id_to_call = (call_sglang_worker.worker_id_to_call + 1) % len(worker_addrs)
+    worker_addr = worker_addrs[call_sglang_worker.worker_id_to_call]
+    assert len(messages) % 2 == 1, "The number of messages must be odd, meaning the last message is from the user"
+    max_retry = 5
+    retry = 0
+    while True:
+        try:
+            state = question.run(
+                prompt=prompt,
+                max_new_tokens=min(int(generate_kwargs.get("max_new_tokens", 1024)), 1024),
+                temperature=float(generate_kwargs.get("temperature", 0.7)),
+                top_p = float(generate_kwargs.get("top_p", 1.0)),
+                backend=RuntimeEndpoint(worker_addr)
+            )
+            response = state["answer"]
+            generated_text = response
+            if response:
+                worker_initiated = True
+            break
+        except urllib.error.URLError as e:
+            if not worker_initiated:
+                time.sleep(5)
+                continue
+            retry += 1
+            if retry > max_retry:
+                return None
+            print("Connection error, retrying...")
+            time.sleep(5)
+        except Exception as e:
+            print("Unknown exception: ", e, "retrying...")
+            raise e
+        
+    generated_text = generated_text.strip("\n ")
+    return generated_text
