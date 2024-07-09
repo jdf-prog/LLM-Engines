@@ -17,6 +17,9 @@ def launch_vllm_worker(
     gpu_ids: List[int]=None,
     dtype: str="auto",
     port: int=34200,
+    host: str="127.0.0.1",
+    root_path: str=None,
+    subprocess: bool=True,
 ) -> str:
     """
     Launch a model worker and return the address
@@ -27,17 +30,21 @@ def launch_vllm_worker(
     """
     print(f"Launching model {model_name}")
     # python3 -m arena.serve.model_worker --model-path liuhaotian/llava-v1.6-vicuna-7b --port 31011 --worker http://127.0.0.1:31011 --host=127.0.0.1 --no-register
-    worker_addr = f"http://127.0.0.1:{port}"
+    worker_addr = f"http://{host}:{port}"
     log_file = Path(os.path.abspath(__file__)).parent / "logs" / f"{model_name}.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
-    if not num_gpus:
-        num_gpus = torch.cuda.device_count()
-        print(f"Warning: num_gpus not provided, using {num_gpus} GPUs")
-    if not gpu_ids:
+    if gpu_ids:
+        num_gpus = len(gpu_ids)
+    else:
+        if not num_gpus:
+            num_gpus = torch.cuda.device_count()
+            print(f"Warning: num_gpus or gpu_ids not provided, using {num_gpus} GPUs")
         gpu_ids = list(range(num_gpus))
+        
     env = os.environ.copy()
     # Set the CUDA_VISIBLE_DEVICES environment variable
     env["CUDA_VISIBLE_DEVICES"] = ",".join([str(gpu_id) for gpu_id in gpu_ids])
+    print(num_gpus, gpu_ids)
     if use_vllm:
         # python -m vllm.entrypoints.openai.api_server --model NousResearch/Meta-Llama-3-8B-Instruct --dtype auto --api-key token-abc123
         proc = SubprocessMonitor([
@@ -46,10 +53,11 @@ def launch_vllm_worker(
             "--dtype", dtype,
             "--api-key", "vllm-engine-token",
             "--port", str(port),
-            "--host", "127.0.0.1",
+            "--host", host,
             "--tensor-parallel-size", str(num_gpus),
             "--disable-log-requests",
-        ], env=env)
+        ] + (["--root-path", root_path] if root_path else [])
+        ,env=env)
         print(f"Launched VLLM model {model_name} at address {worker_addr}")
     print(f"Launching VLLM model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
     return f"http://127.0.0.1:{port}", proc

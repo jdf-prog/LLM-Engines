@@ -17,6 +17,7 @@ def launch_sglang_worker(
     gpu_ids: List[int]=None,
     dtype: str="auto",
     port: int=34200,
+    host: str="127.0.0.1",
 ) -> str:
     """
     Launch a model worker and return the address
@@ -26,13 +27,15 @@ def launch_sglang_worker(
         the address of the launched model
     """
     # python -m sglang.launch_server --model-path meta-llama/Meta-Llama-3-8B-Instruct --port 30000
-    worker_addr = f"http://127.0.0.1:{port}"
+    worker_addr = f"http://{host}:{port}"
     log_file = Path(os.path.abspath(__file__)).parent / "logs" / f"{model_name}.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
-    if not num_gpus:
-        num_gpus = torch.cuda.device_count()
-        print(f"Warning: num_gpus not provided, using {num_gpus} GPUs")
-    if not gpu_ids:
+    if gpu_ids:
+        num_gpus = len(gpu_ids)
+    else:
+        if not num_gpus:
+            num_gpus = torch.cuda.device_count()
+            print(f"Warning: num_gpus or gpu_ids not provided, using {num_gpus} GPUs")
         gpu_ids = list(range(num_gpus))
     env = os.environ.copy()
     # Set the CUDA_VISIBLE_DEVICES environment variable
@@ -50,15 +53,14 @@ def launch_sglang_worker(
     proc = SubprocessMonitor([
         "python3", "-m", "sglang.launch_server",
         "--model-path", model_name,
-        "--host", "127.0.0.1",
+        "--host", host,
         "--port", str(port),
         "--dtype", dtype,
         # "--api-key", "sglang",
         "--log-level", "warning",
         "--tp-size",  str(num_gpus) if num_gpus is not None else "1",
         "--additional-ports"] + [str(port) for port in additonal_ports
-    ] + flashinfer_args, 
-    env=env)
+    ] + flashinfer_args ,env=env)
     print(f"Launching SGLang model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
     sglang_workers[worker_addr] = proc
     return worker_addr, proc

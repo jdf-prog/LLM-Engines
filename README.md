@@ -111,3 +111,32 @@ prompt = self.tokenizer.apply_chat_template(
 )
 ```
 There will be errors if the model does not support the chat template. 
+
+
+### Launch a separate vllm/sglang model worker
+
+- launch a separate vllm worker
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --dtype auto --host "127.0.0.1" --port 34200 --tensor-parallel-size 1 --disable-log-requests
+# address: http://127.0.0.1:34200
+```
+
+- launch a separate sglang worker
+```bash
+CUDA_VISIBLE_DEVICES=1 python -m sglang.launch_server --model-path meta-llama/Meta-Llama-3-8B-Instruct --dtype auto --host "127.0.0.1" --port 34201 --tp-size 1
+# address: http://127.0.0.1:34201
+```
+
+- query multiple workers
+```python
+from llm_engines import call_sglang_or_vllm_worker
+response = call_sglang_or_vllm_worker(
+    messages=["What is the capital of France?"], 
+    model_name="meta-llama/Meta-Llama-3-8B-Instruct",
+    worker_addrs=["http://127.0.0.1:34200", "http://127.0.0.1:34201"], # many workers can be used, will be load balanced
+    temperature=0.0, 
+    max_tokens=None
+)
+print(response)
+# The capital of France is Paris.

@@ -5,6 +5,8 @@ import atexit
 import signal
 from functools import partial
 from .utils import generation_cache_wrapper
+from .sglang import call_sglang_worker
+call_sglang_or_vllm_worker = call_sglang_worker
 
 ENGINES = ["vllm", "sglang", "openai", "gemini", "mistral", "together", "claude"]
 workers = []
