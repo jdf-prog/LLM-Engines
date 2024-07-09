@@ -37,6 +37,7 @@ call_worker_func = get_call_worker_func(
     use_cache=False
 )
 call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+```
 
 - openai models
 ```python
@@ -89,11 +90,24 @@ call_worker_func(messages, temperature=0.0, max_tokens=None)
 ```
 the messages should be in the format of `[user_message, model_response, user_message, model_response, ...]`
 
-## Cache
+### Cache
 all the queries and responses are cached in the `generation_cache` folder, no duplicate queries will be sent to the model.
+The cache of each model is saved to `generation_cache/{model_name}.jsonl`
 
 Example items in the cache:
 ```json
 {"cb0b4aaf80c43c9973aefeda1bd72890": {"input": ["What is the capital of France?"], "output": "The capital of France is Paris."}}
 ```
 The hash key here is the hash of the concatenated inputs.
+
+### Chat template
+For each open-source models, we use the default chat template as follows:
+```python
+prompt = self.tokenizer.apply_chat_template(
+    messages, 
+    add_generation_prompt=add_generation_prompt,
+    tokenize=False,
+    chat_template=chat_template,
+)
+```
+There will be errors if the model does not support the chat template. 
