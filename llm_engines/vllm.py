@@ -3,6 +3,8 @@ import time
 import torch
 import requests
 import json
+import openai
+import vllm
 from pathlib import Path
 from typing import List
 from .utils import SubprocessMonitor, ChatTokenizer
@@ -13,6 +15,7 @@ def launch_vllm_worker(
     use_vllm: bool=True,
     num_gpus: int=None,
     gpu_ids: List[int]=None,
+    dtype: str="auto",
     port: int=34200,
 ) -> str:
     """
@@ -36,31 +39,18 @@ def launch_vllm_worker(
     # Set the CUDA_VISIBLE_DEVICES environment variable
     env["CUDA_VISIBLE_DEVICES"] = ",".join([str(gpu_id) for gpu_id in gpu_ids])
     if use_vllm:
+        # python -m vllm.entrypoints.openai.api_server --model NousResearch/Meta-Llama-3-8B-Instruct --dtype auto --api-key token-abc123
         proc = SubprocessMonitor([
-            "python3", "-m", "fastchat.serve.vllm_worker",
-            "--model-path", model_name,
+            "python3", "-m", "vllm.entrypoints.openai.api_server",
+            "--model", model_name,
+            "--dtype", dtype,
+            "--api-key", "vllm-engine-token",
             "--port", str(port),
-            "--worker-address", worker_addr,
             "--host", "127.0.0.1",
-            "--num-gpus", str(num_gpus) if num_gpus is not None else "1",
-            "--no-register",
-            "--disable-log-stats",
-            "--disable-log-requests"
+            "--tensor-parallel-size", str(num_gpus),
+            "--disable-log-requests",
         ], env=env)
         print(f"Launched VLLM model {model_name} at address {worker_addr}")
-    else:
-        proc = SubprocessMonitor([
-            "python3", "-m", "fastchat.serve.model_worker",
-            "--model-path", model_name,
-            "--port", str(port),
-            "--worker", worker_addr,
-            "--host", "127.0.0.1",
-            "--num-gpus", str(num_gpus) if num_gpus is not None else "1",
-            "--no-register",
-            "--disable-log-stats",
-            "--disable-log-requests"
-        ], env=env)
-        print(f"Launched Normal model {model_name} at address {worker_addr}")
     print(f"Launching VLLM model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
     return f"http://127.0.0.1:{port}", proc
 
@@ -70,57 +60,49 @@ def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, *
     global worker_initiated
     global chat_tokenizers
     
-    if not model_name in chat_tokenizers:
+    if model_name not in chat_tokenizers:
         chat_tokenizers[model_name] = ChatTokenizer(model_name)
     chat_tokenizer = chat_tokenizers[model_name]
     
-    prompt = chat_tokenizer(messages)
-    
-    params = {
-        "prompt": prompt,
-        **generate_kwargs
-    }
-    timeout = 100
-    
+    chat_messages = []
+    if conv_system_msg:
+        chat_messages.append({"role": "system", "content": conv_system_msg})
+    for i, message in enumerate(messages):
+        chat_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
+    assert chat_messages[-1]["role"] == "user", "The last message must be from the user"
+
+    prompt = chat_tokenizer(chat_messages)
+
     if not hasattr(call_vllm_worker, "worker_id_to_call"):
         call_vllm_worker.worker_id_to_call = 0
     call_vllm_worker.worker_id_to_call = (call_vllm_worker.worker_id_to_call + 1) % len(worker_addrs)
     worker_addr = worker_addrs[call_vllm_worker.worker_id_to_call]
     
-    max_retry = 5
-    retry = 0
+    client = openai.OpenAI(
+        base_url=f"{worker_addr}/v1",
+        api_key="vllm-engine-token",
+    )
+    
     while True:
         try:
-            # starlette StreamingResponse
-            response = requests.post(
-                worker_addr + "/worker_generate",
-                json=params,
-                stream=True,
-                timeout=timeout,
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=chat_messages,
+                **generate_kwargs,
             )
-            if response.status_code == 200:
-                worker_initiated = True
+            # completion = client.completions.create(
+            #     model=model_name,
+            #     prompt=prompt,
+            #     **generate_kwargs,
+            # )
             break
-        except requests.exceptions.ConnectionError as e:
+        except openai.APIConnectionError as e:
             if not worker_initiated:
-                time.sleep(5) 
+                time.sleep(5)
                 continue
-            if retry > max_retry:
-                return None
-            retry += 1  
-            print("Connection error, retrying...")
+            print(f"API connection error: {e}")
             time.sleep(5)
-        except requests.exceptions.ReadTimeout as e:
-            print("Read timeout, adding 10 seconds to timeout and retrying...")
-            timeout += 10
-            time.sleep(5)
-        except requests.exceptions.RequestException as e:
-            print("Unknown request exception: ", e, "retrying...")
-            time.sleep(5)
-        except Exception as e:
-            print("Unknown exception: ", e, "retrying...")
-            raise e
-            
-    generated_text = json.loads(response.content.decode("utf-8"))['text']
-    generated_text = generated_text.strip("\n ")
-    return generated_text
+            continue
+    
+    return completion.choices[0].message.content
+    # return completion.choices[0].text

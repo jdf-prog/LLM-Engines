@@ -22,7 +22,6 @@ setup(
         "requests",
         "sentencepiece",
         "vllm",
-        "fschat[model_worker]",
         "together",
         "icecream",
         "prettytable",

@@ -16,8 +16,8 @@ def get_call_worker_func(
     use_cache=True,
     num_workers=1,
     num_gpu_per_worker=1,
+    dtype="auto",
     engine="vllm",
-    **generate_kwargs
 ) -> str:
     """
     Return a function that calls the model worker, takes a list of messages (user, gpt, user, ...) and returns the generated text
@@ -69,7 +69,11 @@ def get_call_worker_func(
                 gpu_ids = list(range(total_gpus))
             start_port = random.randint(31000, 32000)
             for i in range(num_workers):
-                worker_addr, worker = launch_worker_func(model_name, num_gpus=num_gpu_per_worker, gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker], port=start_port+i*10)
+                worker_addr, worker = launch_worker_func(model_name, 
+                    num_gpus=num_gpu_per_worker, 
+                    gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker], 
+                    port=start_port+i*10,
+                    dtype=dtype)
                 worker_addrs.append(worker_addr)
                 workers.append(worker)
             atexit.register(lambda: [cleanup_process(proc) for proc in workers])
@@ -82,10 +86,10 @@ def get_call_worker_func(
     
     # wrap the call_model_worker with the model_name and other arguments
     call_model_worker = partial(call_model_worker, model_name=model_name, 
-        conv_system_msg=conv_system_msg, **generate_kwargs)
+        conv_system_msg=conv_system_msg)
     
     # test local worker connection
-    test_response = call_model_worker(["Hello"])
+    test_response = call_model_worker(["Hello"], temperature=0, max_tokens=None)
     if not test_response:
         print("Error: failed to connect to the worker, exiting...")
         for worker in workers:

@@ -15,9 +15,8 @@ def call_worker_claude(messages:List[str], model_name, conv_system_msg=None, **g
     response = client.messages.create(
         model=model_name,
         messages=new_messages,
-        temperature=float(generate_kwargs.get("temperature", 0.0)),
-        max_tokens=min(int(generate_kwargs.get("max_new_tokens", 1024)), 1024),
-        system=conv_system_msg if conv_system_msg else NOT_GIVEN
+        system=conv_system_msg if conv_system_msg else NOT_GIVEN,
+        **generate_kwargs,
     )
     return response.content[0].text
     

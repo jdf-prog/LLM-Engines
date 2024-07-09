@@ -10,7 +10,6 @@ import hashlib
 from pathlib import Path
 from typing import Union, List
 from typing import List
-from fastchat.model.model_adapter import get_conversation_template
 from transformers import AutoTokenizer
 class SubprocessMonitor:
     def _monitor(self):
@@ -34,47 +33,40 @@ class ChatTokenizer:
         
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.conv = get_conversation_template(model_name)
         self.system_message = None
         if self.tokenizer.chat_template:
             self.apply_chat_template = self.apply_chat_template_default
             print("Using hugging face chat template for model", model_name)
             self.chat_template_source = "huggingface"
         else:
-            if self.conv.name == "one_shot":
-                raise ValueError(f"No chat template found for model {model_name}")
-            print("Using fastchat chat template for model", model_name)
-            self.apply_chat_template = self.apply_chat_template_fschat
-            self.chat_template_source = "fastchat"
-            self.system_message = self.conv.system_message
+            raise NotImplementedError("Chat template not implemented for model", model_name)
         print("Example prompt: \n", self.example_prompt())
         
-    def apply_chat_template_default(self, messages:List[str]):
-        assert len(messages) % 2 == 1, "The number of messages must be odd, meaning the last message is from the user"
-        new_messages = []
-        if self.system_message:
-            new_messages.append({"role": "system", "content": self.system_message})
-        for i, message in enumerate(messages):
-            new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
-        assert new_messages[-1]["role"] == "user", "The last message must be from the user"
-        prompt = self.tokenizer.apply_chat_template(new_messages, add_generation_prompt=True, tokenize=False)
-        return prompt
-    
-    def apply_chat_template_fschat(self, messages:List[str]):
-        assert len(messages) % 2 == 1, "The number of messages must be odd, meaning the last message is from the user"
-        conv = self.conv
-        for i, message in enumerate(messages):
-            conv.append_message(conv.roles[i % 2], message)
-        conv.append_message(conv.roles[1], None)
-        prompt = conv.get_prompt()
+    def apply_chat_template_default(
+        self, 
+        messages:List[str],
+        add_generation_prompt:bool=True,
+        chat_template:str=None
+    ):
+        prompt = self.tokenizer.apply_chat_template(
+            messages, 
+            add_generation_prompt=add_generation_prompt,
+            tokenize=False,
+            chat_template=chat_template,
+        )
         return prompt
     
     def example_prompt(self):
-        example_messages = ["Hello", "Hi", "How are you?", "I'm fine, thank you", "Goodbye"]
+        example_messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"},
+            {"role": "user", "content": "How are you?"},
+            {"role": "assistant", "content": "I'm good, how about you?"},
+        ]
         return self.apply_chat_template(example_messages)
     
-    def __call__(self, messages:List[str]):
-        return self.apply_chat_template(messages)
+    def __call__(self, messages:List[str], **kwargs):
+        return self.apply_chat_template(messages, **kwargs)
 
 
 cache_dict = None
@@ -87,7 +79,7 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
     if cache_file.exists():
         print(f"Cache file exists at {cache_file}")
     print(f"Each single input will be cached in hash-input:output format in {cache_file}")
-    def wrapper(inputs:Union[str, List[str]]):
+    def wrapper(inputs:Union[str, List[str]], **generate_kwargs):
         global cache_dict
         if cache_dir is not None:
             cache_file = Path(cache_dir) / f"{model_name}.jsonl"
@@ -108,7 +100,7 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
         if inputs_hash in cache_dict:
             return cache_dict[inputs_hash]["output"]
         else:
-            generated_text = call_model_worker(inputs)
+            generated_text = call_model_worker(inputs, **generate_kwargs)
             cache_dict[inputs_hash] = {"input": inputs, "output": generated_text}
             with open(cache_file, "a+") as f:
                 f.write(json.dumps({inputs_hash: cache_dict[inputs_hash]}, ensure_ascii=False) + "\n")

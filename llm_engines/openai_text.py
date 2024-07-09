@@ -16,9 +16,7 @@ def call_worker_openai(messages:List[str], model_name, conv_system_msg=None, **g
     response = client.chat.completions.create(
         model=model_name,
         messages=new_messages,
-        max_tokens=min(int(generate_kwargs.get("max_new_tokens", 1024)), 1024),
-        temperature=float(generate_kwargs.get("temperature", 0.0)),
-        top_p = float(generate_kwargs.get("top_p", 1.0)),
+        **generate_kwargs,
     )
     return response.choices[0].message.content
 

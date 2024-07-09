@@ -19,9 +19,7 @@ def call_worker_mistral(messages:List[str], model_name, conv_system_msg=None, **
     response = client.chat(
         model=model_name,
         messages=new_messages,
-        temperature=float(generate_kwargs.get("temperature", 0.0)),
-        max_tokens=min(int(generate_kwargs.get("max_new_tokens", 1024)), 1024),
-        top_p=float(generate_kwargs.get("top_p", 1.0)),
+        **generate_kwargs,
     )
     return response.choices[0].message.content
     

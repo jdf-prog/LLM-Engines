@@ -18,9 +18,7 @@ def call_worker_together(messages, model_name, conv_system_msg=None, **generate_
     response = together_client.chat.completions.create(
         model=model_name,
         messages=new_messages,
-        max_tokens=min(int(generate_kwargs.get("max_new_tokens", 1024)), 1024),
-        temperature=float(generate_kwargs.get("temperature", 0.7)),
-        top_p = float(generate_kwargs.get("top_p", 1.0)),
+        **generate_kwargs,
     )
     # print(response.choices[0].message.content)
     return response.choices[0].message.content
