@@ -26,7 +26,8 @@ call_worker_func = get_call_worker_func(
     engine="sglang", # or "vllm"
     use_cache=False
 )
-call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+print(response)
 ```
 
 - use together
@@ -36,7 +37,8 @@ call_worker_func = get_call_worker_func(
     engine="together",
     use_cache=False
 )
-call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+print(response)
 ```
 
 - openai models
@@ -49,7 +51,8 @@ call_worker_func = get_call_worker_func(
     engine="openai", # or one of "vllm", "together", "openai", "mistral", "claude",
     use_cache=False
 )
-call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+print(response)
 ```
 
 - mistral models
@@ -60,6 +63,8 @@ call_worker_func = get_call_worker_func(
     engine="mistral", # or one of "vllm", "together", "openai", "mistral", "claude",
     use_cache=False
 )
+response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+print(response)
 ```
 
 - claude models
@@ -70,6 +75,8 @@ call_worker_func = get_call_worker_func(
     engine="claude", # or one of "vllm", "together", "openai", "mistral", "claude",
     use_cache=False
 )
+response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+print(response)
 ```
 ### Multi-turn conversation
 ```python
@@ -118,13 +125,14 @@ There will be errors if the model does not support the chat template.
 - launch a separate vllm worker
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --dtype auto --host "127.0.0.1" --port 34200 --tensor-parallel-size 1 --disable-log-requests
+CUDA_VISIBLE_DEVICES=0 python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --dtype auto --host "127.0.0.1" --port 34200 --tensor-parallel-size 1 --disable-log-requests &
 # address: http://127.0.0.1:34200
 ```
 
 - launch a separate sglang worker
 ```bash
-CUDA_VISIBLE_DEVICES=1 python -m sglang.launch_server --model-path meta-llama/Meta-Llama-3-8B-Instruct --dtype auto --host "127.0.0.1" --port 34201 --tp-size 1
+CUDA_VISIBLE_DEVICES=1 python -m sglang.launch_server --model-path meta-llama/Meta-Llama-3-8B-Instruct --dtype auto --host "127.0.0.1" --port 34201 --tp-size 1 &
+CUDA_VISIBLE_DEVICES=1 python -m sglang.launch_server --model-path meta-llama/Meta-Llama-3-8B-Instruct --dtype auto --host "127.0.0.1" --port 34201 --tp-size 1 --disable-flashinfer & # disable flashinfer if it's not installed
 # address: http://127.0.0.1:34201
 ```
 

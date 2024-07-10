@@ -108,10 +108,10 @@ def call_sglang_worker(messages, model_name, worker_addrs, conv_system_msg=None,
     
     client = openai.OpenAI(
         base_url=f"{worker_addr}/v1",
-        # api_key="sglang",
+        api_key="sglang-engine-token",
     )
     
-    generate_kwargs['max_tokens'] = generate_kwargs['max_tokens'] or 8192 # for sglang, max_tokens is required and must > 0
+    generate_kwargs['max_tokens'] = generate_kwargs['max_tokens'] or 4092 # for sglang, max_tokens is required and must > 0
     while True:
         try:
             completion = client.chat.completions.create(
@@ -146,10 +146,10 @@ def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, **genera
     
     client = openai.OpenAI(
         base_url=f"{worker_addr}/v1",
-        # api_key="sglang",
+        api_key="sglang-engine-token",
     )
     
-    generate_kwargs['max_tokens'] = generate_kwargs['max_tokens'] or 8192 # for sglang, max_tokens is required and must > 0
+    generate_kwargs['max_tokens'] = generate_kwargs['max_tokens'] or 4092 # for sglang, max_tokens is required and must > 0
     while True:
         try:
             completion = client.completions.create(
