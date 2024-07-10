@@ -130,13 +130,14 @@ CUDA_VISIBLE_DEVICES=1 python -m sglang.launch_server --model-path meta-llama/Me
 
 - query multiple workers
 ```python
-from llm_engines import call_sglang_or_vllm_worker
-response = call_sglang_or_vllm_worker(
-    messages=["What is the capital of France?"], 
-    model_name="meta-llama/Meta-Llama-3-8B-Instruct",
+from llm_engines import get_call_worker_func
+call_worker_func = get_call_worker_func(
+    model_name="meta-llama/Meta-Llama-3-8B-Instruct", 
     worker_addrs=["http://127.0.0.1:34200", "http://127.0.0.1:34201"], # many workers can be used, will be load balanced
-    temperature=0.0, 
-    max_tokens=None
+    engine="sglang", 
+    use_cache=False
 )
+response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
 print(response)
 # The capital of France is Paris.
+```
