@@ -90,7 +90,6 @@ def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, *
         base_url=f"{worker_addr}/v1",
         api_key="vllm-engine-token",
     )
-    
     while True:
         try:
             completion = client.chat.completions.create(
@@ -98,11 +97,6 @@ def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, *
                 messages=chat_messages,
                 **generate_kwargs,
             )
-            # completion = client.completions.create(
-            #     model=model_name,
-            #     prompt=prompt,
-            #     **generate_kwargs,
-            # )
             break
         except openai.APIConnectionError as e:
             if not worker_initiated:
@@ -113,7 +107,6 @@ def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, *
             continue
     
     return completion.choices[0].message.content
-    # return completion.choices[0].text
     
 def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, **generate_kwargs) -> str:
     global worker_initiated

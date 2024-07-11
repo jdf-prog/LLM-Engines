@@ -149,3 +149,10 @@ response = call_worker_func(["What is the capital of France?"], temperature=0.0,
 print(response)
 # The capital of France is Paris.
 ```
+
+### Test notes
+
+When setting `temperature=0.0` and `max_tokens=None`, testing long generations:
+- VLLM (fp16) can generate same outputs with hugging face transformers (fp16) generations, but not for bf16.
+- Together AI can generate almost the same outputs with vllm (fp16, bf16) generations
+- SGLang's outputs outputs not consistent with others.
