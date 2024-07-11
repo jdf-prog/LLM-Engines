@@ -75,7 +75,8 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
     if cache_dir is not None:
         cache_file = Path(cache_dir) / f"{model_name}.jsonl"
     else:
-        cache_file = Path(os.path.abspath(__file__)).parent / "generation_cache" / f"{model_name}.jsonl"
+        # cache_file = Path(os.path.abspath(__file__)).parent / "generation_cache" / f"{model_name}.jsonl"
+        cache_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache/{model_name}.jsonl"))
     if cache_file.exists():
         print(f"Cache file exists at {cache_file}")
     print(f"Each single input will be cached in hash-input:output format in {cache_file}")
