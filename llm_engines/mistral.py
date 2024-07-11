@@ -13,8 +13,6 @@ def call_worker_mistral(messages:List[str], model_name, conv_system_msg=None, **
         new_messages.append(ChatMessage(role="system", content=conv_system_msg))
     for i, message in enumerate(messages):
         new_messages.append(ChatMessage(role="user" if i % 2 == 0 else "assistant", content=message))
-        
-    assert new_messages[-1].role == "user", "The last message must be from the user"
 
     response = client.chat(
         model=model_name,

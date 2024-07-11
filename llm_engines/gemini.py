@@ -36,7 +36,6 @@ def call_worker_gemini(messages:List[str], model_name, conv_system_msg=None, **g
         new_messages.append({"role": "system", "parts": [glm.Part(text=conv_system_msg)]})
     for i, message in enumerate(messages):
         new_messages.append({"role": "user" if i % 2 == 0 else "model", "parts": [glm.Part(text=message)]})
-    assert new_messages[-1]["role"] == "user", "The last message must be from the user"
     
     response = model.generate_content(new_messages, safety_settings=safety_settings, **generate_kwargs)
     return response.text

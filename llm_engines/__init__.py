@@ -4,9 +4,7 @@ import random
 import atexit
 import signal
 from functools import partial
-from .utils import generation_cache_wrapper
-from .sglang import call_sglang_worker
-call_sglang_or_vllm_worker = call_sglang_worker
+from .utils import generation_cache_wrapper, retry_on_failure
 
 ENGINES = ["vllm", "sglang", "openai", "gemini", "mistral", "together", "claude"]
 workers = []
@@ -21,6 +19,7 @@ def get_call_worker_func(
     num_gpu_per_worker=1,
     dtype="auto",
     engine="vllm",
+    max_retry=5
 ) -> str:
     """
     Return a function that calls the model worker, takes a list of messages (user, gpt, user, ...) and returns the generated text
@@ -130,6 +129,7 @@ def get_call_worker_func(
     else:
         print("Cache is disabled")
     
+    call_model_worker = retry_on_failure(call_model_worker, num_retries=max_retry)
     return call_model_worker
 
 def cleanup_process(proc):

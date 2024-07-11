@@ -10,7 +10,6 @@ def call_worker_claude(messages:List[str], model_name, conv_system_msg=None, **g
     new_messages = []
     for i, message in enumerate(messages):
         new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
-    assert new_messages[-1]["role"] == "user", "The last message must be from the user"
     
     response = client.messages.create(
         model=model_name,

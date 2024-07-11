@@ -106,3 +106,14 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
                 f.write(json.dumps({inputs_hash: cache_dict[inputs_hash]}, ensure_ascii=False) + "\n")
             return generated_text
     return wrapper
+
+def retry_on_failure(call_model_worker, num_retries=5):
+    def wrapper(*args, **kwargs):
+        for i in range(num_retries):
+            try:
+                return call_model_worker(*args, **kwargs)
+            except Exception as e:
+                print("Error in call_model_worker, retrying", e)
+                time.sleep(1)
+        raise Exception("Failed after multiple retries")
+    return wrapper

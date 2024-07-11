@@ -97,7 +97,6 @@ def call_sglang_worker(messages, model_name, worker_addrs, conv_system_msg=None,
         chat_messages.append({"role": "system", "content": conv_system_msg})
     for i, message in enumerate(messages):
         chat_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
-    assert chat_messages[-1]["role"] == "user", "The last message must be from the user"
 
     prompt = chat_tokenizer(chat_messages)
 
