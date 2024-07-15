@@ -133,7 +133,8 @@ def get_call_worker_func(
     return call_model_worker
 
 def cleanup_process(proc):
-    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    os.kill(proc.pid, signal.SIGTERM)
     print("Subprocess terminated.")
     
 def cleanup_all_workers():
