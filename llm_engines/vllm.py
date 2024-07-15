@@ -97,6 +97,8 @@ def launch_vllm_worker(
                 "--max-loras", "1",
                 "--max-lora-rank", str(adapter_config["r"])
             ]
+        else:
+            lora_args = []
         # python -m vllm.entrypoints.openai.api_server --model NousResearch/Meta-Llama-3-8B-Instruct --dtype auto --api-key token-abc123
         proc = SubprocessMonitor([
             "python3", "-m", "vllm.entrypoints.openai.api_server",
@@ -108,8 +110,7 @@ def launch_vllm_worker(
             "--tensor-parallel-size", str(num_gpus),
             "--disable-log-requests",
         ] + (["--root-path", root_path] if root_path else [])
-        + lora_args if use_lora else []
-        ,env=env)
+        + lora_args, env=env)
         print(f"Launched VLLM model {model_name} at address {worker_addr}")
     print(f"Launching VLLM model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
     if model_name not in chat_tokenizers:
