@@ -8,8 +8,11 @@ import vllm
 from pathlib import Path
 from typing import List
 from .utils import SubprocessMonitor, ChatTokenizer
+from huggingface_hub import HfApi, hf_hub_download, snapshot_download
 worker_initiated = False
 
+
+chat_tokenizers = {}
 def launch_vllm_worker(
     model_name: str,
     use_vllm: bool=True,
@@ -29,7 +32,6 @@ def launch_vllm_worker(
         the address of the launched model
     """
     print(f"Launching model {model_name}")
-    # python3 -m arena.serve.model_worker --model-path liuhaotian/llava-v1.6-vicuna-7b --port 31011 --worker http://127.0.0.1:31011 --host=127.0.0.1 --no-register
     worker_addr = f"http://{host}:{port}"
     log_file = Path(os.path.abspath(__file__)).parent / "logs" / f"{model_name}.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -45,11 +47,60 @@ def launch_vllm_worker(
     # Set the CUDA_VISIBLE_DEVICES environment variable
     env["CUDA_VISIBLE_DEVICES"] = ",".join([str(gpu_id) for gpu_id in gpu_ids])
     print(num_gpus, gpu_ids)
+    
+    model_path = Path(model_name)
+    if model_path.exists() and ((model_path / "config.json").exists() or (model_path / "adapter_config.json").exists()):
+        if (model_path / "adapter_config.json").exists():
+            print(f"Loading local model {model_name} with adapter")
+            use_lora = True
+            with open(model_path / "adapter_config.json") as f:
+                adapter_config = json.load(f)
+            adapter_path = model_path
+            base_model_name_or_path = adapter_config["base_model_name_or_path"]
+        elif (model_path / "config.json").exists():
+            print(f"Loading local model {model_name}")
+            use_lora = False
+            adapter_path = None
+            base_model_name_or_path = model_name
+        else:
+            raise ValueError(f"no config.json or adapter_config.json found in model {model_name}")
+    else:
+        # check whether there is a adapter_config.json
+        api = HfApi()
+        model_info = api.model_info(model_name)
+        model_files = [x.rfilename for x in model_info.siblings]
+        if "adapter_config.json" in model_files:
+            use_lora = True
+            adapter_path = snapshot_download(model_name)
+            adapter_config_path = Path(adapter_path) / "adapter_config.json"
+            with open(adapter_config_path) as f:
+                adapter_config = json.load(f)
+            base_model_name_or_path = adapter_config["base_model_name_or_path"]
+            print(f"Loading model from Hugging Face {model_name} with adapter")
+        elif "config.json" in model_files:
+            use_lora = False
+            adapter_path = None
+            base_model_name_or_path = model_name
+            print(f"Loading model from Hugging Face {model_name}")
+        else:
+            raise ValueError(f"no config.json or adapter_config.json found in model {model_name}")
+        
+    # python -m vllm.entrypoints.openai.api_server \
+    # --model meta-llama/Llama-2-7b-hf \
+    # --enable-lora \
+    # --lora-modules sql-lora=~/.cache/huggingface/hub/models--yard1--llama-2-7b-sql-lora-test/
     if use_vllm:
+        if use_lora:
+            lora_args = [
+                "--enable-lora",
+                "--lora-modules", f"{model_name}={adapter_path}",
+                "--max-loras", "1",
+                "--max-lora-rank", str(adapter_config["r"])
+            ]
         # python -m vllm.entrypoints.openai.api_server --model NousResearch/Meta-Llama-3-8B-Instruct --dtype auto --api-key token-abc123
         proc = SubprocessMonitor([
             "python3", "-m", "vllm.entrypoints.openai.api_server",
-            "--model", model_name,
+            "--model", base_model_name_or_path,
             "--dtype", dtype,
             "--api-key", "vllm-engine-token",
             "--port", str(port),
@@ -57,19 +108,20 @@ def launch_vllm_worker(
             "--tensor-parallel-size", str(num_gpus),
             "--disable-log-requests",
         ] + (["--root-path", root_path] if root_path else [])
+        + lora_args if use_lora else []
         ,env=env)
         print(f"Launched VLLM model {model_name} at address {worker_addr}")
     print(f"Launching VLLM model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
+    if model_name not in chat_tokenizers:
+        chat_tokenizers[model_name] = ChatTokenizer(base_model_name_or_path)
+    if base_model_name_or_path not in chat_tokenizers:
+        chat_tokenizers[base_model_name_or_path] = ChatTokenizer(base_model_name_or_path)
     return f"http://127.0.0.1:{port}", proc
-
-chat_tokenizers = {}
 
 def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     
-    if model_name not in chat_tokenizers:
-        chat_tokenizers[model_name] = ChatTokenizer(model_name)
     chat_tokenizer = chat_tokenizers[model_name]
     
     chat_messages = []

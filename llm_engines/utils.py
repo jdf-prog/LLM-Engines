@@ -21,6 +21,7 @@ class SubprocessMonitor:
             time.sleep(5)
             
     def __init__(self, command, **kwargs):
+        print("Launching subprocess with command:\n", " ".join(command))
         self.proc = subprocess.Popen(command, **kwargs)
         self.monitor_thread = threading.Thread(target=self._monitor)
         self.monitor_thread.start()
