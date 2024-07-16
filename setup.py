@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='llm_engines',
+    name='llm-engines',
     version='0.0.1',
     description='',
     author='Dongfu Jiang',
