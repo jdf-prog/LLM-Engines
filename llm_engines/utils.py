@@ -103,7 +103,7 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
             return cache_dict[inputs_hash]["output"]
         else:
             generated_text = call_model_worker(inputs, **generate_kwargs)
-            cache_dict[inputs_hash] = {"input": inputs, "output": generated_text}
+            cache_dict[inputs_hash] = {"input": inputs, "output": generated_text, "model_name": model_name, 'tstamp': time.time(), "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), "generate_kwargs": generate_kwargs}
             with open(cache_file, "a+") as f:
                 f.write(json.dumps({inputs_hash: cache_dict[inputs_hash]}, ensure_ascii=False) + "\n")
             return generated_text
