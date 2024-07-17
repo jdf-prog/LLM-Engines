@@ -86,7 +86,8 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
         if cache_dir is not None:
             cache_file = Path(cache_dir) / f"{model_name}.jsonl"
         else:
-            cache_file = Path(os.path.abspath(__file__)).parent.parent / "generation_cache" / f"{model_name}.jsonl"
+            # cache_file = Path(os.path.abspath(__file__)).parent.parent / "generation_cache" / f"{model_name}.jsonl"
+            cache_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache/{model_name}.jsonl"))
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         if cache_dict is None:
             if os.path.exists(cache_file):

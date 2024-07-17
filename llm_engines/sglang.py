@@ -132,6 +132,11 @@ def call_sglang_worker(messages, model_name, worker_addrs, conv_system_msg=None,
 def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, **generate_kwargs) -> str:
     global worker_initiated
     
+    if "max_new_tokens" in generate_kwargs:
+        if "max_tokens" not in generate_kwargs:
+            generate_kwargs["max_tokens"] = generate_kwargs["max_new_tokens"]
+        del generate_kwargs["max_new_tokens"]
+        
     if not hasattr(call_sglang_worker_completion, "worker_id_to_call"):
         call_sglang_worker_completion.worker_id_to_call = 0
     call_sglang_worker_completion.worker_id_to_call = (call_sglang_worker_completion.worker_id_to_call + 1) % len(worker_addrs)

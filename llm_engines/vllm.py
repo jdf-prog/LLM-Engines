@@ -122,6 +122,10 @@ def launch_vllm_worker(
 def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
+    if "max_new_tokens" in generate_kwargs:
+        if "max_tokens" not in generate_kwargs:
+            generate_kwargs["max_tokens"] = generate_kwargs["max_new_tokens"]
+        del generate_kwargs["max_new_tokens"]
     
     chat_tokenizer = chat_tokenizers[model_name]
     
