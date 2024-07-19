@@ -33,7 +33,7 @@ class ChatTokenizer:
     def __init__(self, model_name):
         
         self.model_name = model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self.system_message = None
         if self.tokenizer.chat_template:
             self.apply_chat_template = self.apply_chat_template_default
