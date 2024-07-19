@@ -1,13 +1,13 @@
 import os
 import time
 import torch
-import urllib
+import random
 import openai
 import importlib.util
 from pathlib import Path
 from typing import List
 
-from sglang import function, system, user, assistant, gen, set_default_backend, RuntimeEndpoint
+from sglang import function, system, user, assistant, gen
 from .utils import SubprocessMonitor, ChatTokenizer
 worker_initiated = False
 sglang_workers = {}
@@ -100,10 +100,7 @@ def call_sglang_worker(messages, model_name, worker_addrs, conv_system_msg=None,
 
     prompt = chat_tokenizer(chat_messages)
 
-    if not hasattr(call_sglang_worker, "worker_id_to_call"):
-        call_sglang_worker.worker_id_to_call = 0
-    call_sglang_worker.worker_id_to_call = (call_sglang_worker.worker_id_to_call + 1) % len(worker_addrs)
-    worker_addr = worker_addrs[call_sglang_worker.worker_id_to_call]
+    worker_addr = random.choice(worker_addrs)
     
     client = openai.OpenAI(
         base_url=f"{worker_addr}/v1",

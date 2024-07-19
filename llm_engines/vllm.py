@@ -1,7 +1,7 @@
 import os
 import time
 import torch
-import requests
+import random
 import json
 import openai
 import vllm
@@ -44,7 +44,8 @@ def launch_vllm_worker(
     env = os.environ.copy()
     # Set the CUDA_VISIBLE_DEVICES environment variable
     env["CUDA_VISIBLE_DEVICES"] = ",".join([str(gpu_id) for gpu_id in gpu_ids])
-    env["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
+    if "llama-2" not in model_name:
+        env["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
     print(num_gpus, gpu_ids)
     
     model_path = Path(model_name)
@@ -135,10 +136,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, *
 
     prompt = chat_tokenizer(chat_messages)
 
-    if not hasattr(call_vllm_worker, "worker_id_to_call"):
-        call_vllm_worker.worker_id_to_call = 0
-    call_vllm_worker.worker_id_to_call = (call_vllm_worker.worker_id_to_call + 1) % len(worker_addrs)
-    worker_addr = worker_addrs[call_vllm_worker.worker_id_to_call]
+    worker_addr = random.choice(worker_addrs)
     
     client = openai.OpenAI(
         base_url=f"{worker_addr}/v1",
