@@ -167,3 +167,4 @@ def cleanup_all_workers():
         cleanup_process(worker)
     if workers:
         print("All workers terminated.")
+    workers.clear()
