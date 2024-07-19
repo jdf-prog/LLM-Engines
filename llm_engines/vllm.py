@@ -44,7 +44,7 @@ def launch_vllm_worker(
     env = os.environ.copy()
     # Set the CUDA_VISIBLE_DEVICES environment variable
     env["CUDA_VISIBLE_DEVICES"] = ",".join([str(gpu_id) for gpu_id in gpu_ids])
-    if "llama-2" not in model_name:
+    if "gemma-2" in model_name:
         env["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
     print(num_gpus, gpu_ids)
     
