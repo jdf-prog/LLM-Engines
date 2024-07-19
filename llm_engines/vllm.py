@@ -15,14 +15,12 @@ worker_initiated = False
 chat_tokenizers = {}
 def launch_vllm_worker(
     model_name: str,
-    use_vllm: bool=True,
     num_gpus: int=None,
     gpu_ids: List[int]=None,
     dtype: str="auto",
     port: int=34200,
     host: str="127.0.0.1",
     root_path: str=None,
-    subprocess: bool=True,
 ) -> str:
     """
     Launch a model worker and return the address
@@ -46,6 +44,7 @@ def launch_vllm_worker(
     env = os.environ.copy()
     # Set the CUDA_VISIBLE_DEVICES environment variable
     env["CUDA_VISIBLE_DEVICES"] = ",".join([str(gpu_id) for gpu_id in gpu_ids])
+    env["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
     print(num_gpus, gpu_ids)
     
     model_path = Path(model_name)
@@ -89,30 +88,29 @@ def launch_vllm_worker(
     # --model meta-llama/Llama-2-7b-hf \
     # --enable-lora \
     # --lora-modules sql-lora=~/.cache/huggingface/hub/models--yard1--llama-2-7b-sql-lora-test/
-    if use_vllm:
-        if use_lora:
-            lora_args = [
-                "--enable-lora",
-                "--lora-modules", f"{model_name}={adapter_path}",
-                "--max-loras", "1",
-                "--max-lora-rank", str(adapter_config["r"])
-            ]
-        else:
-            lora_args = []
-        # python -m vllm.entrypoints.openai.api_server --model NousResearch/Meta-Llama-3-8B-Instruct --dtype auto --api-key token-abc123
-        proc = SubprocessMonitor([
-            "python3", "-m", "vllm.entrypoints.openai.api_server",
-            "--model", base_model_name_or_path,
-            "--dtype", dtype,
-            "--api-key", "vllm-engine-token",
-            "--port", str(port),
-            "--host", host,
-            "--tensor-parallel-size", str(num_gpus),
-            "--disable-log-requests",
-        ] + (["--root-path", root_path] if root_path else [])
-        + lora_args, env=env)
-        print(f"Launched VLLM model {model_name} at address {worker_addr}")
-    print(f"Launching VLLM model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
+    if use_lora:
+        lora_args = [
+            "--enable-lora",
+            "--lora-modules", f"{model_name}={adapter_path}",
+            "--max-loras", "1",
+            "--max-lora-rank", str(adapter_config["r"])
+        ]
+    else:
+        lora_args = []
+    # python -m vllm.entrypoints.openai.api_server --model NousResearch/Meta-Llama-3-8B-Instruct --dtype auto --api-key token-abc123
+    proc = SubprocessMonitor([
+        "python3", "-m", "vllm.entrypoints.openai.api_server",
+        "--model", base_model_name_or_path,
+        "--dtype", dtype,
+        "--api-key", "vllm-engine-token",
+        "--port", str(port),
+        "--host", host,
+        "--tensor-parallel-size", str(num_gpus),
+        "--disable-log-requests",
+        "--trust-remote-code",
+    ] + (["--root-path", root_path] if root_path else [])
+    + lora_args, env=env)
+    print(f"Launched VLLM model {model_name} at address {worker_addr} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
     if model_name not in chat_tokenizers:
         chat_tokenizers[model_name] = ChatTokenizer(base_model_name_or_path)
     if base_model_name_or_path not in chat_tokenizers:

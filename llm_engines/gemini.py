@@ -37,7 +37,17 @@ def call_worker_gemini(messages:List[str], model_name, conv_system_msg=None, **g
     for i, message in enumerate(messages):
         new_messages.append({"role": "user" if i % 2 == 0 else "model", "parts": [glm.Part(text=message)]})
     
-    response = model.generate_content(new_messages, safety_settings=safety_settings, **generate_kwargs)
+    generation_config = genai.GenerationConfig(
+        candidate_count=generate_kwargs.get("num_return_sequences", None),
+        stop_sequences=generate_kwargs.get("stop", None),
+        max_output_tokens=generate_kwargs.get("max_tokens", None),
+        temperature=generate_kwargs.get("temperature", None),
+        top_p=generate_kwargs.get("top_p", None),
+        top_k=generate_kwargs.get("top_k", None),
+        response_mime_type=generate_kwargs.get("response_mime_type", None),
+        response_schema=generate_kwargs.get("response_schema", None),
+    )
+    response = model.generate_content(new_messages, safety_settings=safety_settings, generation_config=generation_config)
     return response.text
 
 if __name__ == "__main__":

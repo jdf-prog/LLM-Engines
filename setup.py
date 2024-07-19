@@ -27,6 +27,7 @@ setup(
         "prettytable",
         "sglang[all]",
         "mistralai",
-        "anthropic"
+        "anthropic",
+        "flashinfer"
     ],
 )
