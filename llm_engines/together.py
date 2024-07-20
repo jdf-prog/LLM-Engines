@@ -1,4 +1,5 @@
 import os
+import time
 together_client = None
 def call_worker_together(messages, model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     from together import Together
@@ -15,11 +16,22 @@ def call_worker_together(messages, model_name, timeout:int=60, conv_system_msg=N
     for i, message in enumerate(messages):
         new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
     
-    response = together_client.chat.completions.create(
-        model=model_name,
-        messages=new_messages,
-        **generate_kwargs,
-    )
+    max_retry_for_unbound_local_error = 10
+    retry_count = 0
+    while True:
+        try:
+            response = together_client.chat.completions.create(
+                model=model_name,
+                messages=new_messages,
+                **generate_kwargs,
+            )
+            break
+        except UnboundLocalError as e:
+            time.sleep(0.5)
+            retry_count += 1
+            if retry_count >= max_retry_for_unbound_local_error:
+                raise e
+            continue
     return response.choices[0].message.content
 
 def call_worker_together_completion(prompt:str, model_name, timeout:int=60, **generate_kwargs) -> str:
