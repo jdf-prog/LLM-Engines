@@ -20,7 +20,7 @@ def get_call_worker_func(
     num_gpu_per_worker=1,
     dtype="auto",
     engine="vllm",
-    max_retry=5
+    max_retry=None,
 ) -> str:
     """
     Return a function that calls the model worker, takes a list of messages (user, gpt, user, ...) and returns the generated text

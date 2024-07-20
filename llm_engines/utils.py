@@ -7,6 +7,7 @@ import signal
 import json
 import hashlib
 import traceback
+import threading
 from pathlib import Path
 from typing import Union, List
 from typing import List
@@ -135,17 +136,23 @@ def timeout_handler(signum, frame):
 def with_timeout(timeout):
     def decorator(func):
         def wrapper(*args, **kwargs):
-            if timeout is None or timeout == 0:
-                return func(*args, **kwargs)
-            # Set the signal handler and a timeout alarm
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(int(timeout))
-            try:
-                result = func(*args, **kwargs)
-            finally:
-                # Disable the alarm
-                signal.alarm(0)
-            print("Function call completed within timeout")
-            return result
+            result = [TimeoutError("Function call timed out")]
+            stop_event = threading.Event()
+
+            def target():
+                try:
+                    result[0] = func(*args, **kwargs)
+                except Exception as e:
+                    result[0] = e
+
+            thread = threading.Thread(target=target)
+            thread.start()
+            thread.join(timeout)
+            if thread.is_alive():
+                stop_event.set()
+                raise TimeoutError("Function call timed out")
+            if isinstance(result[0], Exception):
+                raise result[0]
+            return result[0]
         return wrapper
     return decorator
