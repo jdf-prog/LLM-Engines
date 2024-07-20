@@ -126,7 +126,13 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
             generate_kwargs["max_tokens"] = generate_kwargs["max_new_tokens"]
         del generate_kwargs["max_new_tokens"]
     
-    chat_tokenizer = chat_tokenizers[model_name]
+    try:
+        if model_name not in chat_tokenizers:
+            chat_tokenizers[model_name] = ChatTokenizer(model_name)
+        chat_tokenizer = chat_tokenizers[model_name]
+        prompt = chat_tokenizer(chat_messages)
+    except Exception as e:
+        pass
     
     chat_messages = []
     if conv_system_msg:
@@ -134,7 +140,6 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
     for i, message in enumerate(messages):
         chat_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
 
-    prompt = chat_tokenizer(chat_messages)
 
     worker_addr = random.choice(worker_addrs)
     
@@ -161,13 +166,10 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
     
     return completion.choices[0].message.content
     
-def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, **generate_kwargs) -> str:
+def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=60, **generate_kwargs) -> str:
     global worker_initiated
     
-    if not hasattr(call_vllm_worker_completion, "worker_id_to_call"):
-        call_vllm_worker_completion.worker_id_to_call = 0
-    call_vllm_worker_completion.worker_id_to_call = (call_vllm_worker_completion.worker_id_to_call + 1) % len(worker_addrs)
-    worker_addr = worker_addrs[call_vllm_worker_completion.worker_id_to_call]
+    worker_addr = random.choice(worker_addrs)
     
     client = openai.OpenAI(
         base_url=f"{worker_addr}/v1",
@@ -179,6 +181,7 @@ def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, **generate
             completion = client.completions.create(
                 model=model_name,
                 prompt=prompt,
+                timeout=timeout
                 **generate_kwargs,
             )
             break
