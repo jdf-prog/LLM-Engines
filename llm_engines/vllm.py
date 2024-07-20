@@ -119,7 +119,7 @@ def launch_vllm_worker(
         chat_tokenizers[base_model_name_or_path] = ChatTokenizer(base_model_name_or_path)
     return f"http://127.0.0.1:{port}", proc
 
-def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=None, conv_system_msg=None, **generate_kwargs) -> str:
+def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     if "max_new_tokens" in generate_kwargs:
@@ -171,7 +171,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=None, conv_
     
     return get_response()
     
-def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=None, **generate_kwargs) -> str:
+def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=60, **generate_kwargs) -> str:
     global worker_initiated
     
     worker_addr = random.choice(worker_addrs)

@@ -84,7 +84,7 @@ def question(s, prompt):
 
 
 chat_tokenizers = {}
-def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=None, conv_system_msg=None, **generate_kwargs) -> str:
+def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     
@@ -130,7 +130,7 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=None, con
         return completion.choices[0].message.content
     return get_response()
 
-def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=None, **generate_kwargs) -> str:
+def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=60, **generate_kwargs) -> str:
     global worker_initiated
     
     if "max_new_tokens" in generate_kwargs:
