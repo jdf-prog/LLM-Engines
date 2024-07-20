@@ -116,7 +116,7 @@ def retry_on_failure(call_model_worker, num_retries=5):
             try:
                 return call_model_worker(*args, **kwargs)
             except Exception as e:
-                print("Error in call_model_worker, retrying", e)
+                print("Error in call_model_worker, retrying... (Error: {})".format(e))
                 time.sleep(1)
         raise Exception("Failed after multiple retries")
     return wrapper

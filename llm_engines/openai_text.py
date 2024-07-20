@@ -2,7 +2,7 @@ from openai import OpenAI
 from typing import List
 
 # no image, multi-turn, do not use openai_generate, but can refer to it
-def call_worker_openai(messages:List[str], model_name, conv_system_msg=None, **generate_kwargs) -> str:
+def call_worker_openai(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to openai format
     new_messages = []
     if conv_system_msg:
@@ -15,6 +15,7 @@ def call_worker_openai(messages:List[str], model_name, conv_system_msg=None, **g
     response = client.chat.completions.create(
         model=model_name,
         messages=new_messages,
+        timeout=timeout,
         **generate_kwargs,
     )
     return response.choices[0].message.content
