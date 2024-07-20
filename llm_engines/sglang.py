@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List
 
 from sglang import function, system, user, assistant, gen
-from .utils import SubprocessMonitor, ChatTokenizer
+from .utils import SubprocessMonitor, ChatTokenizer, with_timeout
 worker_initiated = False
 sglang_workers = {}
 def launch_sglang_worker(
@@ -84,15 +84,21 @@ def question(s, prompt):
 
 
 chat_tokenizers = {}
-def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
+def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=None, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
+    
+    if model_name not in chat_tokenizers:
+        chat_tokenizers[model_name] = ChatTokenizer(model_name)
+    chat_tokenizer = chat_tokenizers[model_name]
     
     chat_messages = []
     if conv_system_msg:
         chat_messages.append({"role": "system", "content": conv_system_msg})
     for i, message in enumerate(messages):
         chat_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
+
+    prompt = chat_tokenizer(chat_messages)
 
     worker_addr = random.choice(worker_addrs)
     
@@ -102,26 +108,29 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_
     )
     
     generate_kwargs['max_tokens'] = generate_kwargs.get('max_tokens', 4092) # for sglang, max_tokens is required and must > 0
-    while True:
-        try:
-            completion = client.chat.completions.create(
-                model=model_name,
-                messages=chat_messages,
-                timeout=timeout,
-                **generate_kwargs,
-            )
-            break
-        except openai.APIConnectionError as e:
-            if not worker_initiated:
+    
+    @with_timeout(timeout)
+    def get_response():
+        while True:
+            try:
+                completion = client.chat.completions.create(
+                    model=model_name,
+                    messages=chat_messages,
+                    **generate_kwargs,
+                )
+                break
+            except openai.APIConnectionError as e:
+                if not worker_initiated:
+                    time.sleep(5)
+                    continue
+                print(f"API connection error: {e}")
                 time.sleep(5)
                 continue
-            print(f"API connection error: {e}")
-            time.sleep(5)
-            continue
-    
-    return completion.choices[0].message.content
+        
+        return completion.choices[0].message.content
+    return get_response()
 
-def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=60, **generate_kwargs) -> str:
+def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=None, **generate_kwargs) -> str:
     global worker_initiated
     
     if "max_new_tokens" in generate_kwargs:
@@ -137,24 +146,27 @@ def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:
     )
     
     generate_kwargs['max_tokens'] = generate_kwargs.get('max_tokens', 4092) # for sglang, max_tokens is required and must > 0
-    while True:
-        try:
-            completion = client.completions.create(
-                model=model_name,
-                prompt=prompt,
-                timeout=timeout,
-                **generate_kwargs,
-            )
-            break
-        except openai.APIConnectionError as e:
-            if not worker_initiated:
+    
+    @with_timeout(timeout)
+    def get_response():
+        while True:
+            try:
+                completion = client.completions.create(
+                    model=model_name,
+                    prompt=prompt,
+                    **generate_kwargs,
+                )
+                break
+            except openai.APIConnectionError as e:
+                if not worker_initiated:
+                    time.sleep(5)
+                    continue
+                print(f"API connection error: {e}")
                 time.sleep(5)
                 continue
-            print(f"API connection error: {e}")
-            time.sleep(5)
-            continue
-    
-    return completion.choices[0].text
+        
+        return completion.choices[0].text
+    return get_response()
 
     
 # chat_tokenizers = {}

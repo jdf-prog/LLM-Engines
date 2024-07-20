@@ -1,12 +1,12 @@
 import subprocess
-import threading
 import time
 import os
 import signal
-import yaml
 import os
+import signal
 import json
 import hashlib
+import traceback
 from pathlib import Path
 from typing import Union, List
 from typing import List
@@ -70,7 +70,7 @@ class ChatTokenizer:
         return self.apply_chat_template(messages, **kwargs)
 
 
-cache_dict = None
+cache_dict = {}
 def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
     print(f"Using cache for model {model_name}")
     if cache_dir is not None:
@@ -88,27 +88,32 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
         else:
             # cache_file = Path(os.path.abspath(__file__)).parent.parent / "generation_cache" / f"{model_name}.jsonl"
             cache_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache/{model_name}.jsonl"))
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        if cache_dict is None:
-            if os.path.exists(cache_file):
+        if model_name not in cache_dict:
+            if cache_file.exists():
                 with open(cache_file, "r") as f:
-                    cache_dict = [json.loads(line) for line in f.readlines()]
-                cache_dict = {list(item.keys())[0]: list(item.values())[0] for item in cache_dict}
+                    model_cache_dict = [json.loads(line) for line in f.readlines()]
+                model_cache_dict = {list(item.keys())[0]: list(item.values())[0] for item in model_cache_dict}
+                cache_dict[model_name] = model_cache_dict
             else:
-                cache_dict = {}
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                cache_dict[model_name] = {}
+
         if isinstance(inputs, str):
             inputs_hash = hashlib.md5(inputs.encode()).hexdigest()
         else:
             inputs_hash = hashlib.md5("".join(inputs).encode()).hexdigest()
-        if inputs_hash in cache_dict:
-            return cache_dict[inputs_hash]["output"]
+        if inputs_hash in cache_dict[model_name]:
+            return cache_dict[model_name][inputs_hash]["output"]
         else:
             generated_text = call_model_worker(inputs, **generate_kwargs)
-            cache_dict[inputs_hash] = {"input": inputs, "output": generated_text, "model_name": model_name, 'tstamp': time.time(), "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), "generate_kwargs": generate_kwargs}
+            cache_dict[model_name][inputs_hash] = {"input": inputs, "output": generated_text, "model_name": model_name, 'tstamp': time.time(), "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), "generate_kwargs": generate_kwargs}
             with open(cache_file, "a+") as f:
-                f.write(json.dumps({inputs_hash: cache_dict[inputs_hash]}, ensure_ascii=False) + "\n")
+                f.write(json.dumps({inputs_hash: cache_dict[model_name][inputs_hash]}, ensure_ascii=False) + "\n")
             return generated_text
     return wrapper
+
+class MaxRetriesExceededError(Exception):
+    pass
 
 def retry_on_failure(call_model_worker, num_retries=5):
     def wrapper(*args, **kwargs):
@@ -118,5 +123,29 @@ def retry_on_failure(call_model_worker, num_retries=5):
             except Exception as e:
                 print("Error in call_model_worker, retrying... (Error: {})".format(e))
                 time.sleep(1)
-        raise Exception("Failed after multiple retries")
+                if i == num_retries - 1:
+                    # format dump of the last error and
+                    print(traceback.format_exc())
+        raise MaxRetriesExceededError("Max retries exceeded for call_model_worker")
     return wrapper
+
+def timeout_handler(signum, frame):
+    raise TimeoutError("Function call timed out")
+
+def with_timeout(timeout):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            if timeout is None or timeout == 0:
+                return func(*args, **kwargs)
+            # Set the signal handler and a timeout alarm
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(int(timeout))
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                # Disable the alarm
+                signal.alarm(0)
+            print("Function call completed within timeout")
+            return result
+        return wrapper
+    return decorator

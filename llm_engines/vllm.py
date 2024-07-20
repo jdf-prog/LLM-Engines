@@ -5,9 +5,10 @@ import random
 import json
 import openai
 import vllm
+import signal
 from pathlib import Path
 from typing import List
-from .utils import SubprocessMonitor, ChatTokenizer
+from .utils import SubprocessMonitor, ChatTokenizer, with_timeout
 from huggingface_hub import HfApi, hf_hub_download, snapshot_download
 worker_initiated = False
 
@@ -118,7 +119,7 @@ def launch_vllm_worker(
         chat_tokenizers[base_model_name_or_path] = ChatTokenizer(base_model_name_or_path)
     return f"http://127.0.0.1:{port}", proc
 
-def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
+def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=None, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     if "max_new_tokens" in generate_kwargs:
@@ -147,26 +148,30 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
         base_url=f"{worker_addr}/v1",
         api_key="vllm-engine-token",
     )
-    while True:
-        try:
-            completion = client.chat.completions.create(
-                model=model_name,
-                messages=chat_messages,
-                timeout=timeout,
-                **generate_kwargs,
-            )
-            break
-        except openai.APIConnectionError as e:
-            if not worker_initiated:
+    
+    @with_timeout(timeout)
+    def get_response():
+        while True:
+            try:
+                completion = client.chat.completions.create(
+                    model=model_name,
+                    messages=chat_messages,
+                    **generate_kwargs,
+                )
+                break
+            except openai.APIConnectionError as e:
+                if not worker_initiated:
+                    time.sleep(5)
+                    continue
+                print(f"API connection error: {e}")
                 time.sleep(5)
                 continue
-            print(f"API connection error: {e}")
-            time.sleep(5)
-            continue
     
-    return completion.choices[0].message.content
+        return completion.choices[0].message.content
     
-def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=60, **generate_kwargs) -> str:
+    return get_response()
+    
+def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=None, **generate_kwargs) -> str:
     global worker_initiated
     
     worker_addr = random.choice(worker_addrs)
@@ -176,21 +181,22 @@ def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:in
         api_key="vllm-engine-token",
     )
     
-    while True:
-        try:
-            completion = client.completions.create(
-                model=model_name,
-                prompt=prompt,
-                timeout=timeout
-                **generate_kwargs,
-            )
-            break
-        except openai.APIConnectionError as e:
-            if not worker_initiated:
+    @with_timeout(timeout)
+    def get_response():
+        while True:
+            try:
+                completion = client.completions.create(
+                    model=model_name,
+                    prompt=prompt,
+                    **generate_kwargs,
+                )
+                break
+            except openai.APIConnectionError as e:
+                if not worker_initiated:
+                    time.sleep(5)
+                    continue
+                print(f"API connection error: {e}")
                 time.sleep(5)
                 continue
-            print(f"API connection error: {e}")
-            time.sleep(5)
-            continue
-    
-    return completion.choices[0].text
+        return completion.choices[0].text
+    return get_response()
