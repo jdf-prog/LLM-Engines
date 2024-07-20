@@ -4,7 +4,7 @@ from typing import List
 from anthropic import NOT_GIVEN
 
 # no image, multi-turn, do not use openai_generate, but can refer to it
-def call_worker_claude(messages:List[str], model_name, conv_system_msg=None, **generate_kwargs) -> str:
+def call_worker_claude(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to mistral format
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     new_messages = []
@@ -15,6 +15,7 @@ def call_worker_claude(messages:List[str], model_name, conv_system_msg=None, **g
         model=model_name,
         messages=new_messages,
         system=conv_system_msg if conv_system_msg else NOT_GIVEN,
+        timeout=timeout,
         **generate_kwargs,
     )
     return response.content[0].text

@@ -84,7 +84,7 @@ def question(s, prompt):
 
 
 chat_tokenizers = {}
-def call_sglang_worker(messages, model_name, worker_addrs, conv_system_msg=None, **generate_kwargs) -> str:
+def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     
@@ -113,6 +113,7 @@ def call_sglang_worker(messages, model_name, worker_addrs, conv_system_msg=None,
             completion = client.chat.completions.create(
                 model=model_name,
                 messages=chat_messages,
+                timeout=timeout,
                 **generate_kwargs,
             )
             break

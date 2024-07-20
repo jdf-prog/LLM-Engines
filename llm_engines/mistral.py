@@ -5,9 +5,9 @@ from mistralai.exceptions import MistralException
 from typing import List
 
 # no image, multi-turn, do not use openai_generate, but can refer to it
-def call_worker_mistral(messages:List[str], model_name, conv_system_msg=None, **generate_kwargs) -> str:
+def call_worker_mistral(messages:List[str], model_name, timeout:int=120, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to mistral format
-    client = MistralClient(api_key=os.environ.get("MISTRAL_API_KEY"))
+    client = MistralClient(api_key=os.environ.get("MISTRAL_API_KEY"), timeout=timeout)
     new_messages = []
     if conv_system_msg:
         new_messages.append(ChatMessage(role="system", content=conv_system_msg))

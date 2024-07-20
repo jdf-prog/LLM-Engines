@@ -19,13 +19,14 @@ def call_worker_openai(messages:List[str], model_name, conv_system_msg=None, **g
     )
     return response.choices[0].message.content
 
-def call_worker_openai_completion(prompt:str, model_name, **generate_kwargs) -> str:
+def call_worker_openai_completion(prompt:str, model_name, timeout:int=60, **generate_kwargs) -> str:
     # initialize openai client
     client = OpenAI()
     # call openai
     response = client.completions.create(
         model=model_name,
         prompt=prompt,
+        timeout=timeout,
         **generate_kwargs,
     )
     return response.choices[0].text

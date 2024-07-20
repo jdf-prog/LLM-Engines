@@ -118,7 +118,7 @@ def launch_vllm_worker(
         chat_tokenizers[base_model_name_or_path] = ChatTokenizer(base_model_name_or_path)
     return f"http://127.0.0.1:{port}", proc
 
-def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, **generate_kwargs) -> str:
+def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     if "max_new_tokens" in generate_kwargs:
@@ -147,6 +147,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, conv_system_msg=None, *
             completion = client.chat.completions.create(
                 model=model_name,
                 messages=chat_messages,
+                timeout=timeout,
                 **generate_kwargs,
             )
             break

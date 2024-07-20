@@ -27,7 +27,7 @@ safety_settings = [
     },
 ]
 # no image, multi-turn, do not use openai_generate, but can refer to it
-def call_worker_gemini(messages:List[str], model_name, conv_system_msg=None, **generate_kwargs) -> str:
+def call_worker_gemini(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to gemini format
     model = genai.GenerativeModel(model_name)
     
@@ -47,7 +47,10 @@ def call_worker_gemini(messages:List[str], model_name, conv_system_msg=None, **g
         response_mime_type=generate_kwargs.get("response_mime_type", None),
         response_schema=generate_kwargs.get("response_schema", None),
     )
-    response = model.generate_content(new_messages, safety_settings=safety_settings, generation_config=generation_config)
+    request_options = genai.types.RequestOptions(
+        timeout=timeout,
+    )
+    response = model.generate_content(new_messages, safety_settings=safety_settings, generation_config=generation_config, request_options=request_options)
     return response.text
 
 if __name__ == "__main__":
