@@ -136,7 +136,7 @@ def timeout_handler(signum, frame):
 def with_timeout(timeout):
     def decorator(func):
         def wrapper(*args, **kwargs):
-            result = [TimeoutError("Function call timed out")]
+            result = [TimeoutError(f"Function call timed out (timeout={timeout})")]
             stop_event = threading.Event()
 
             def target():
@@ -150,7 +150,7 @@ def with_timeout(timeout):
             thread.join(timeout)
             if thread.is_alive():
                 stop_event.set()
-                raise TimeoutError("Function call timed out")
+                raise TimeoutError(f"Function call timed out (timeout={timeout})")
             if isinstance(result[0], Exception):
                 raise result[0]
             return result[0]
