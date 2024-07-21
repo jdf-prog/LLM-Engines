@@ -28,6 +28,5 @@ setup(
         "sglang[all]",
         "mistralai",
         "anthropic",
-        "flashinfer"
     ],
 )
