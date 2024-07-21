@@ -1,9 +1,15 @@
 from setuptools import setup, find_packages
+# read the contents of your README file
+from pathlib import Path
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.md").read_text()
 
 setup(
     name='llm-engines',
-    version='0.0.1',
-    description='',
+    version='0.0.2',
+    description='A unified inference engine for large language models (LLMs) including open-source models (VLLM, SGLang, Together) and commercial models (OpenAI, Mistral, Claude).',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author='Dongfu Jiang',
     author_email='dongfu.jiang@uwaterloo.ca',
     packages=find_packages(),
@@ -28,6 +34,16 @@ setup(
         "sglang[all]",
         "mistralai",
         "anthropic",
-        "flash-attn"
     ],
+    extras_require={
+        "flash-attn": {
+            "flash-attn"
+        }
+    }
 )
+
+"""
+rm -rf dist build llm_engines.egg-info
+python setup.py sdist bdist_wheel
+twine upload dist/*
+"""
