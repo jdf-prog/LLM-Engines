@@ -47,6 +47,8 @@ def launch_vllm_worker(
     env["CUDA_VISIBLE_DEVICES"] = ",".join([str(gpu_id) for gpu_id in gpu_ids])
     if "gemma-2" in model_name:
         env["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
+    else:
+        env["VLLM_ATTENTION_BACKEND"] = "FLASH_ATTN"
     print(num_gpus, gpu_ids)
     
     model_path = Path(model_name)
