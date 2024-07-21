@@ -28,5 +28,6 @@ setup(
         "sglang[all]",
         "mistralai",
         "anthropic",
+        "triton==2.3.1",
     ],
 )
