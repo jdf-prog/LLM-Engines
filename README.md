@@ -156,3 +156,4 @@ When setting `temperature=0.0` and `max_tokens=None`, testing long generations:
 - VLLM (fp16) can generate same outputs with hugging face transformers (fp16) generations, but not for bf16.
 - Together AI can generate almost the same outputs with vllm (fp16, bf16) generations
 - SGLang's outputs outputs not consistent with others.
+- VLLM does not support Deepseek-V2 models well, for now, refer to triton [issue](https://github.com/vllm-project/vllm/issues/6103)
