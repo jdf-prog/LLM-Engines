@@ -109,11 +109,11 @@ def get_call_worker_func(
         call_model_worker = partial(call_model_worker, model_name=model_name, 
             conv_system_msg=conv_system_msg)
         # test local worker connection
-        test_response = call_model_worker(["Hello"], temperature=0, max_tokens=None)
+        test_response = call_model_worker(["Hello"], temperature=0, max_tokens=None, timeout=None)
     else:
         call_model_worker = partial(call_model_worker, model_name=model_name)
         # test local worker connection
-        test_response = call_model_worker("Hello", temperature=0, max_tokens=None)
+        test_response = call_model_worker("Hello", temperature=0, max_tokens=None, timeout=None)
     if not test_response:
         print("Error: failed to connect to the worker, exiting...")
         for worker in workers:
