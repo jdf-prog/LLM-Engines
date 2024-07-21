@@ -6,6 +6,7 @@ import json
 import openai
 import vllm
 import signal
+import regex as re
 from pathlib import Path
 from typing import List
 from .utils import SubprocessMonitor, ChatTokenizer, with_timeout
@@ -168,6 +169,26 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
                 print(f"API connection error: {e}")
                 time.sleep(5)
                 continue
+            except openai.BadRequestError as e:
+                error_response = e.response.json()
+                if error_response['code'] == 400:
+                    pattern = r"This model's maximum context length is (\d+) tokens. However, you requested (\d+) tokens \((\d+) in the messages, (\d+) in the completion\). Please reduce the length of the messages or completion."
+                    res = re.match(pattern, error_response['message'])
+                    if res:
+                        max_context_length = int(res.group(1))
+                        num_tokens_requested = int(res.group(2))
+                        num_tokens_in_messages = int(res.group(3))
+                        num_tokens_in_completion = int(res.group(4))
+                        
+                        new_max_tokens = num_tokens_in_completion - (num_tokens_requested - max_context_length)
+                        if new_max_tokens <= 0:
+                            raise e
+                        print(f"Reducing max_tokens to {new_max_tokens}, and retrying")
+                        generate_kwargs["max_tokens"] = new_max_tokens
+                        continue
+                    else:
+                        raise e
+
     
         return completion.choices[0].message.content
     
