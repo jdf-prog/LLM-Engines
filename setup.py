@@ -19,7 +19,7 @@ setup(
         "openai",
         "google-generativeai",
         "accelerate",
-        "transformers>=4.39.0",
+        "transformers",
         "torch",
         "Pillow",
         "torch",
@@ -27,7 +27,7 @@ setup(
         "numpy",
         "requests",
         "sentencepiece",
-        "vllm==0.5.1", # 0.5.2 does not work, 0.5.1 is the latest version that works, can be updated if newer version is released and it works
+        "vllm", # 0.5.2 does not work, 0.5.1 is the latest version that works, can be updated if newer version is released and it works
         "together",
         "icecream",
         "prettytable",
