@@ -9,6 +9,7 @@ Try examples below to see the outputs of different engines.
 ## Installation
     
 ```bash
+pip install llm-engines
 pip install git+https://github.com/jdf-progLLM-Engines.git
 # pip install -e . # for development
 ```
