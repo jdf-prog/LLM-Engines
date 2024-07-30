@@ -100,9 +100,9 @@ call_worker_func(messages, temperature=0.0, max_tokens=None)
 the messages should be in the format of `[user_message, model_response, user_message, model_response, ...]`
 
 ### Parallel infernece
-Check out [`./examples/mp_infernece_wildchat.py`](./examples/mp_infernece_wildchat.py) for parallel inference with multiple models.
+Check out [`./examples/mp_inference_wildchat.py`](./examples/mp_inference_wildchat.py) for parallel inference with multiple models.
 ```bash
-python examples/mp_infernece_wildchat.py
+python examples/mp_inference_wildchat.py
 ```
 
 ### Cache
