@@ -34,6 +34,7 @@ print(response)
 
 - use together
 ```python
+# export TOGETHER_API_KEY="your_together_api_key"
 call_worker_func = get_call_worker_func(
     model_name="meta-llama/Llama-3-8b-chat-hf", 
     engine="together",
@@ -45,11 +46,10 @@ print(response)
 
 - openai models
 ```python
+# export OPENAI_API_KEY="your_openai_api_key"
 from llm_engines import get_call_worker_func
 call_worker_func = get_call_worker_func(
     model_name="gpt-3.5-turbo", 
-    num_workers=1, # number of workers
-    num_gpu_per_worker=1, # tensor parallelism size for each worker
     engine="openai", # or one of "vllm", "together", "openai", "mistral", "claude",
     use_cache=False
 )
@@ -59,6 +59,7 @@ print(response)
 
 - mistral models
 ```python
+# export MISTRAL_API_KEY="your_mistral_api_key"
 from llm_engines import get_call_worker_func
 call_worker_func = get_call_worker_func(
     model_name="mistral-large-latest", 
@@ -71,10 +72,24 @@ print(response)
 
 - claude models
 ```python
+# export ANTHROPIC_API_KEY="your_claude_api_key"
 from llm_engines import get_call_worker_func
 call_worker_func = get_call_worker_func(
     model_name="claude-3-opus-20240229", 
     engine="claude", # or one of "vllm", "together", "openai", "mistral", "claude",
+    use_cache=False
+)
+response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+print(response)
+```
+
+- gemini models
+```python
+# export GOOGLE_API_KEY="your_gemini_api_key"
+from llm_engines import get_call_worker_func
+call_worker_func = get_call_worker_func(
+    model_name="gemini-1.5-flash", 
+    engine="gemini", # or one of "vllm", "together", "openai", "mistral", "claude",
     use_cache=False
 )
 response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
