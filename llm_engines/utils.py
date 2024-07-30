@@ -124,7 +124,7 @@ def retry_on_failure(call_model_worker, num_retries=5):
             except Exception as e:
                 print("Error in call_model_worker, retrying... (Error: {})".format(e))
                 time.sleep(1)
-                if i == num_retries - 1 and not isinstance(e, TimeoutError):
+                if i >= num_retries - 1 and not isinstance(e, TimeoutError):
                     # format dump of the last error and
                     print(traceback.format_exc())
         raise MaxRetriesExceededError("Max retries exceeded for call_model_worker")
