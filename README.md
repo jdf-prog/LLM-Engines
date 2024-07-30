@@ -10,7 +10,8 @@ Try examples below to see the outputs of different engines.
     
 ```bash
 pip install llm-engines
-pip install git+https://github.com/jdf-progLLM-Engines.git
+# or
+pip install git+https://github.com/jdf-prog/LLM-Engines.git
 # pip install -e . # for development
 ```
 
@@ -97,6 +98,12 @@ messages = [
 call_worker_func(messages, temperature=0.0, max_tokens=None)
 ```
 the messages should be in the format of `[user_message, model_response, user_message, model_response, ...]`
+
+### Parallel infernece
+Check out [`./examples/mp_infernece_wildchat.py`](./examples/mp_infernece_wildchat.py) for parallel inference with multiple models.
+```bash
+python examples/mp_infernece_wildchat.py
+```
 
 ### Cache
 all the queries and responses are cached in the `generation_cache` folder, no duplicate queries will be sent to the model.
