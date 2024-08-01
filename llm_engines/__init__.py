@@ -128,8 +128,7 @@ def get_call_worker_func(
         call_model_worker = generation_cache_wrapper(call_model_worker, model_name, cache_dir)
     else:
         print("Cache is disabled")
-    if max_retry and max_retry > 0:
-        call_model_worker = retry_on_failure(call_model_worker, num_retries=max_retry)
+    call_model_worker = retry_on_failure(call_model_worker, num_retries=max_retry)
     return call_model_worker
 
 

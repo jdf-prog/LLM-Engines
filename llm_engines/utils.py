@@ -118,16 +118,22 @@ class MaxRetriesExceededError(Exception):
 
 def retry_on_failure(call_model_worker, num_retries=5):
     def wrapper(*args, **kwargs):
-        for i in range(num_retries):
-            try:
-                return call_model_worker(*args, **kwargs)
-            except Exception as e:
-                print("Error in call_model_worker, retrying... (Error: {})".format(e))
-                time.sleep(1)
-                if i >= num_retries - 1 and not isinstance(e, TimeoutError):
-                    # format dump of the last error and
-                    print(traceback.format_exc())
-        raise MaxRetriesExceededError("Max retries exceeded for call_model_worker")
+        try:
+            return call_model_worker(*args, **kwargs)
+        except Exception as e:
+            if not num_retries:
+                print(traceback.format_exc())
+                raise MaxRetriesExceededError(f"Max retries exceeded for call_model_worker (num_retries={num_retries})")
+            for i in range(num_retries):
+                try:
+                    return call_model_worker(*args, **kwargs)
+                except Exception as e:
+                    print("Error in call_model_worker, retrying... (Error: {})".format(e))
+                    time.sleep(1)
+                    if i >= num_retries - 1 and not isinstance(e, TimeoutError):
+                        # format dump of the last error and
+                        print(traceback.format_exc())
+            raise MaxRetriesExceededError(f"Max retries exceeded for call_model_worker (num_retries={num_retries})")
     return wrapper
 
 def timeout_handler(signum, frame):
