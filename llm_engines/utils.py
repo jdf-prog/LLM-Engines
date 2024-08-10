@@ -12,6 +12,13 @@ from pathlib import Path
 from typing import Union, List
 from typing import List
 from transformers import AutoTokenizer
+
+default_gen_params = {
+    "temperature": 0.0,
+    "max_tokens": None,
+    "top_p": 1.0,
+    "timeout": 600,
+}
 class SubprocessMonitor:
     def _monitor(self):
         while True:
@@ -36,6 +43,15 @@ class ChatTokenizer:
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self.system_message = None
+        try:
+            self.max_length = self.tokenizer.model_max_length
+        except AttributeError:
+            self.max_length = 4096
+        if not isinstance(self.max_length, int):
+            self.max_length = 4096
+        if self.max_length > 1e6:
+            self.max_length = 1e6
+            
         if self.tokenizer.chat_template:
             self.apply_chat_template = self.apply_chat_template_default
             print("Using hugging face chat template for model", model_name)
@@ -71,8 +87,46 @@ class ChatTokenizer:
         return self.apply_chat_template(messages, **kwargs)
 
 
+def convert_messages(messages:List[str]):
+    """
+    Convert messages to the format expected by the model
+    """
+    if all(isinstance(item, dict) for item in messages):
+        assert all("content" in item for item in messages), "content key not found in messages"
+        assert all("role" in item for item in messages), "role key not found in messages"
+        if messages[0]["role"] == "system":
+            conv_system_msg = messages[0]["content"]
+            messages = messages[1:]
+        else:
+            conv_system_msg = None
+        new_messages = []
+        for i, message in enumerate(messages):
+            if i % 2 == 0:
+                assert message["role"] == "user", "User message must be at even index"
+            else:
+                assert message["role"] == "assistant", "Assistant message must be at odd index"
+            new_messages.append(message["content"])
+        return new_messages, conv_system_msg
+    else:
+        assert all(isinstance(item, str) for item in messages)
+        return messages, None
+
+def convert_messages_wrapper(call_model_worker, is_completion=False):
+    def wrapper(messages:Union[List[str], List[dict]], **generate_kwargs):
+        if not is_completion:
+            messages, conv_system_msg = convert_messages(messages)
+            generate_kwargs["conv_system_msg"] = conv_system_msg
+        else:
+            assert isinstance(messages, str), "Completion model only accepts a single string input"
+        # add default generation parameters
+        for key, value in default_gen_params.items():
+            if key not in generate_kwargs:
+                generate_kwargs[key] = value
+        return call_model_worker(messages, **generate_kwargs)
+    return wrapper
+            
 cache_dict = {}
-def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
+def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, overwrite_cache=False):
     print(f"Using cache for model {model_name}")
     if cache_dir is not None:
         cache_file = Path(cache_dir) / f"{model_name}.jsonl"
@@ -99,15 +153,23 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None):
                 cache_file.parent.mkdir(parents=True, exist_ok=True)
                 cache_dict[model_name] = {}
 
+        conv_system_msg = generate_kwargs.get("conv_system_msg", None)
         if isinstance(inputs, str):
             inputs_hash = hashlib.md5(inputs.encode()).hexdigest()
         else:
-            inputs_hash = hashlib.md5("".join(inputs).encode()).hexdigest()
-        if inputs_hash in cache_dict[model_name]:
+            if conv_system_msg:
+                inputs_hash = hashlib.md5((conv_system_msg+"".join(inputs)).encode()).hexdigest()
+            else:
+                inputs_hash = hashlib.md5("".join(inputs).encode()).hexdigest()
+        if not overwrite_cache and inputs_hash in cache_dict[model_name]:
             return cache_dict[model_name][inputs_hash]["output"]
         else:
             generated_text = call_model_worker(inputs, **generate_kwargs)
-            cache_dict[model_name][inputs_hash] = {"input": inputs, "output": generated_text, "model_name": model_name, 'tstamp': time.time(), "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), "generate_kwargs": generate_kwargs}
+            cache_dict[model_name][inputs_hash] = {
+                "input": inputs, "output": generated_text, 
+                "model_name": model_name, 'tstamp': time.time(), 
+                "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), 
+                "generate_kwargs": generate_kwargs}
             with open(cache_file, "a+") as f:
                 f.write(json.dumps({inputs_hash: cache_dict[model_name][inputs_hash]}, ensure_ascii=False) + "\n")
             return generated_text

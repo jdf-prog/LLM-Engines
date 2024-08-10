@@ -107,7 +107,7 @@ def launch_vllm_worker(
         "python3", "-m", "vllm.entrypoints.openai.api_server",
         "--model", base_model_name_or_path,
         "--dtype", dtype,
-        "--api-key", "vllm-engine-token",
+        # "--api-key", "vllm-engine-token",
         "--port", str(port),
         "--host", host,
         "--tensor-parallel-size", str(num_gpus),
@@ -129,7 +129,6 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
         if "max_tokens" not in generate_kwargs:
             generate_kwargs["max_tokens"] = generate_kwargs["max_new_tokens"]
         del generate_kwargs["max_new_tokens"]
-    
     try:
         if model_name not in chat_tokenizers:
             chat_tokenizers[model_name] = ChatTokenizer(model_name)
@@ -149,7 +148,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
     
     client = openai.OpenAI(
         base_url=f"{worker_addr}/v1",
-        api_key="vllm-engine-token",
+        # api_key="vllm-engine-token",
     )
     
     @with_timeout(timeout)

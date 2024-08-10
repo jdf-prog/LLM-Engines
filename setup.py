@@ -6,7 +6,7 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(
     name='llm-engines',
-    version='0.0.3',
+    version='0.0.4',
     description='A unified inference engine for large language models (LLMs) including open-source models (VLLM, SGLang, Together) and commercial models (OpenAI, Mistral, Claude).',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -27,7 +27,7 @@ setup(
         "numpy",
         "requests",
         "sentencepiece",
-        "vllm", # 0.5.2 does not work, 0.5.1 is the latest version that works, can be updated if newer version is released and it works
+        "vllm",
         "together",
         "icecream",
         "prettytable",

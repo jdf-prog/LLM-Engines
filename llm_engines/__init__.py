@@ -5,7 +5,7 @@ import atexit
 import signal
 import psutil
 from functools import partial
-from .utils import generation_cache_wrapper, retry_on_failure, MaxRetriesExceededError
+from .utils import generation_cache_wrapper, retry_on_failure, MaxRetriesExceededError, convert_messages_wrapper
 
 ENGINES = ["vllm", "sglang", "openai", "gemini", "mistral", "together", "claude"]
 workers = []
@@ -13,8 +13,8 @@ def get_call_worker_func(
     model_name, 
     worker_addrs=None, 
     cache_dir=None, 
-    conv_system_msg=None,
     use_cache=True,
+    overwrite_cache=False,
     completion=False, 
     num_workers=1,
     num_gpu_per_worker=1,
@@ -28,8 +28,8 @@ def get_call_worker_func(
         model_name: model name
         worker_addrs: worker addresses, if None, launch local workers
         cache_dir: cache directory
-        conv_system_msg: conversation system message
-        use_cache: use cache or not
+        use_cache: use cache or not. Cache is on the hash of the input message.
+        overwrite_cache: overwrite cache or not. If True, previous cache will be overwritten.
         completion: use completion or not (use chat by default)
         num_workers: number of workers
         num_gpu_per_worker: number of gpus per worker
@@ -105,14 +105,11 @@ def get_call_worker_func(
         raise ValueError(f"Engine {engine} not supported, available engines: {ENGINES}")
     
     # wrap the call_model_worker with the model_name and other arguments
+    call_model_worker = partial(call_model_worker, model_name=model_name)
+    # test local worker connection
     if not completion:
-        call_model_worker = partial(call_model_worker, model_name=model_name, 
-            conv_system_msg=conv_system_msg)
-        # test local worker connection
         test_response = call_model_worker(["Hello"], temperature=0, max_tokens=256, timeout=None)
     else:
-        call_model_worker = partial(call_model_worker, model_name=model_name)
-        # test local worker connection
         test_response = call_model_worker("Hello", temperature=0, max_tokens=256, timeout=None)
     if not test_response:
         print("Error: failed to connect to the worker, exiting...")
@@ -123,12 +120,14 @@ def get_call_worker_func(
         print(f"Successfully connected to the workers")
         print("Test prompt: \n", "Hello")
         print("Test response: \n", test_response)
+        
     # add cache wrapper
     if use_cache:
-        call_model_worker = generation_cache_wrapper(call_model_worker, model_name, cache_dir)
+        call_model_worker = generation_cache_wrapper(call_model_worker, model_name, cache_dir, overwrite_cache)
     else:
         print("Cache is disabled")
     call_model_worker = retry_on_failure(call_model_worker, num_retries=max_retry)
+    call_model_worker = convert_messages_wrapper(call_model_worker, is_completion=completion)
     return call_model_worker
 
 
