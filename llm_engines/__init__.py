@@ -21,6 +21,7 @@ def get_call_worker_func(
     dtype="auto",
     engine="vllm",
     max_retry=None,
+    verbose=False
 ) -> str:
     """
     Return a function that calls the model worker, takes a list of messages (user, gpt, user, ...) and returns the generated text
@@ -118,8 +119,9 @@ def get_call_worker_func(
         sys.exit(1)
     else:
         print(f"Successfully connected to the workers")
-        print("Test prompt: \n", "Hello")
-        print("Test response: \n", test_response)
+        if verbose:
+            print("Test prompt: \n", "Hello")
+            print("Test response: \n", test_response)
         
     # add cache wrapper
     if use_cache:
@@ -131,6 +133,11 @@ def get_call_worker_func(
     return call_model_worker
 
 
+do_cleanup = True
+def set_do_cleanup(value):
+    global do_cleanup
+    do_cleanup = value
+    
 def kill_process_and_children(pid):
     try:
         parent = psutil.Process(pid)
@@ -152,7 +159,6 @@ def kill_process_and_children(pid):
     except psutil.NoSuchProcess:
         print(f"Parent process {pid} already terminated.")
         
-        
 def cleanup_process(proc):
     # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
     # os.kill(proc.pid, signal.SIGTERM)
@@ -161,6 +167,8 @@ def cleanup_process(proc):
 
 @atexit.register
 def cleanup_all_workers():
+    if not do_cleanup:
+        return
     for worker in workers:
         cleanup_process(worker)
     if workers:

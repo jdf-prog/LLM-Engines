@@ -9,10 +9,16 @@ Try examples below to see the outputs of different engines.
 ## Installation
     
 ```bash
-pip install llm-engines
-# or
-pip install git+https://github.com/jdf-prog/LLM-Engines.git
-# pip install -e . # for development
+pip install llm-engines # or
+# pip install git+https://github.com/jdf-prog/LLM-Engines.git
+
+```
+For development:
+```bash
+pip install -e . # for development
+# Add ons
+pip install flashinfer -i https://flashinfer.ai/whl/cu121/torch2.4/ # required for sglang
+pip install flash-attn --no-build-isolation
 ```
 
 ## Usage
