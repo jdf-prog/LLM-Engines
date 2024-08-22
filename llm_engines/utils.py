@@ -8,6 +8,7 @@ import json
 import hashlib
 import traceback
 import threading
+import openai
 from pathlib import Path
 from typing import Union, List
 from typing import List
@@ -175,13 +176,19 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, over
 class MaxRetriesExceededError(Exception):
     pass
 
+short_error_instances = [
+    openai.BadRequestError,
+]
 def retry_on_failure(call_model_worker, num_retries=5):
     def wrapper(*args, **kwargs):
         try:
             return call_model_worker(*args, **kwargs)
         except Exception as e:
             if not num_retries:
-                print(traceback.format_exc())
+                if any(isinstance(e, error_instance) for error_instance in short_error_instances):
+                    print(str(e))
+                else:
+                    print(traceback.format_exc())
                 raise MaxRetriesExceededError(f"Max retries exceeded for call_model_worker (num_retries={num_retries})")
             for i in range(num_retries):
                 try:
@@ -190,8 +197,11 @@ def retry_on_failure(call_model_worker, num_retries=5):
                     print("Error in call_model_worker, retrying... (Error: {})".format(e))
                     time.sleep(1)
                     if i >= num_retries - 1 and not isinstance(e, TimeoutError):
-                        # format dump of the last error and
-                        print(traceback.format_exc())
+                        if any(isinstance(e, error_instance) for error_instance in short_error_instances):
+                            print(str(e))
+                        else:
+                            # format dump of the last error and
+                            print(traceback.format_exc())
             raise MaxRetriesExceededError(f"Max retries exceeded for call_model_worker (num_retries={num_retries})")
     return wrapper
 
