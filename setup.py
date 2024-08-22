@@ -6,7 +6,7 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(
     name='llm-engines',
-    version='0.0.4',
+    version='0.0.5',
     description='A unified inference engine for large language models (LLMs) including open-source models (VLLM, SGLang, Together) and commercial models (OpenAI, Mistral, Claude).',
     long_description=long_description,
     long_description_content_type='text/markdown',
