@@ -34,9 +34,6 @@ class SubprocessMonitor:
         # self.monitor_thread = threading.Thread(target=self._monitor)
         # self.monitor_thread.start()
     
-    def __getattr__(self, name):
-        return getattr(self.proc, name)
-    
 class ChatTokenizer:
     def __init__(self, model_name):
         

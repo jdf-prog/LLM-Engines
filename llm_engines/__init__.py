@@ -180,7 +180,7 @@ def cleanup_all_workers():
     if not do_cleanup:
         return
     for worker in workers:
-        cleanup_process(worker)
+        cleanup_process(worker.proc)
     if workers and verbose:
         print("All workers terminated.")
     workers.clear()
