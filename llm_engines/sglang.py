@@ -44,8 +44,10 @@ def launch_sglang_worker(
     # check flashinfer
     flashinfer = importlib.util.find_spec("flashinfer")
     if flashinfer is None:
-        print("flashinfer not found, disable flashinfer for sglang")
-        flashinfer_args = ["--disable-flashinfer"]
+        print("flashinfer not found, please first install flashinfer for sglang")
+        print("Simple Command: pip install flashinfer -i https://flashinfer.ai/whl/cu121/torch2.4/")
+        print("Please refer to https://docs.flashinfer.ai/installation.html for detailed installation instructions")
+        exit(1) 
     else:
         print("flashinfer found, enable flashinfer for sglang")
         flashinfer_args = []

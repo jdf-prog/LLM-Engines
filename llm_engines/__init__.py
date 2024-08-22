@@ -9,6 +9,11 @@ from .utils import generation_cache_wrapper, retry_on_failure, MaxRetriesExceede
 
 ENGINES = ["vllm", "sglang", "openai", "gemini", "mistral", "together", "claude"]
 workers = []
+verbose = False
+def set_verbose(value):
+    global verbose
+    verbose = value
+    
 def get_call_worker_func(
     model_name, 
     worker_addrs=None, 
@@ -98,7 +103,8 @@ def get_call_worker_func(
                 worker_addrs.append(worker_addr)
                 workers.append(worker)
         else:
-            print(f"Using existing worker at {worker_addrs}")
+            if verbose:
+                print(f"Using existing worker at {worker_addrs}")
             if not isinstance(worker_addrs, list):
                 worker_addrs = [worker_addr]
         call_model_worker = partial(call_worker_func, worker_addrs=worker_addrs)        
@@ -118,8 +124,8 @@ def get_call_worker_func(
             cleanup_process(worker)
         sys.exit(1)
     else:
-        print(f"Successfully connected to the workers")
         if verbose:
+            print(f"Successfully connected to the workers")
             print("Test prompt: \n", "Hello")
             print("Test response: \n", test_response)
         
@@ -127,9 +133,12 @@ def get_call_worker_func(
     if use_cache:
         call_model_worker = generation_cache_wrapper(call_model_worker, model_name, cache_dir, overwrite_cache)
     else:
-        print("Cache is disabled")
+        if verbose:
+            print("Cache is disabled")
     call_model_worker = retry_on_failure(call_model_worker, num_retries=max_retry)
     call_model_worker = convert_messages_wrapper(call_model_worker, is_completion=completion)
+    set_do_cleanup(True)
+    set_verbose(verbose)
     return call_model_worker
 
 
@@ -163,7 +172,8 @@ def cleanup_process(proc):
     # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
     # os.kill(proc.pid, signal.SIGTERM)
     kill_process_and_children(proc.pid)
-    print("Model Worker terminated.")
+    if verbose:
+        print(f"Model Worker at {proc.pid} terminated.")
 
 @atexit.register
 def cleanup_all_workers():
@@ -171,6 +181,13 @@ def cleanup_all_workers():
         return
     for worker in workers:
         cleanup_process(worker)
-    if workers:
+    if workers and verbose:
         print("All workers terminated.")
     workers.clear()
+
+import importlib.util
+flash_attn = importlib.util.find_spec("flash_attn")
+if not flash_attn:
+    print("Warning: flash_attn not found, recommend to install flash_attn for better performance")
+    print("Simple Command: pip install flash_attn --no-build-isolation")
+    print("Please refer to https://github.com/Dao-AILab/flash-attention for detailed installation instructions")
