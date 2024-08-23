@@ -91,7 +91,7 @@ class ChatTokenizer:
         return self.apply_chat_template(messages, **kwargs)
 
 
-def convert_messages(messages:List[str]):
+def convert_messages(messages:Union[List[str], List[dict], str]):
     """
     Convert messages to the format expected by the model
     """
@@ -112,11 +112,13 @@ def convert_messages(messages:List[str]):
             new_messages.append(message["content"])
         return new_messages, conv_system_msg
     else:
+        if isinstance(messages, str):
+            messages = [messages]
         assert all(isinstance(item, str) for item in messages)
         return messages, None
 
 def convert_messages_wrapper(call_model_worker, is_completion=False):
-    def wrapper(messages:Union[List[str], List[dict]], **generate_kwargs):
+    def wrapper(messages:Union[List[str], List[dict], str], **generate_kwargs):
         if not is_completion:
             messages, conv_system_msg = convert_messages(messages)
             generate_kwargs["conv_system_msg"] = conv_system_msg
