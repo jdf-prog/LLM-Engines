@@ -165,6 +165,7 @@ There will be errors if the model does not support the chat template.
 - `cache_dir`: the cache directory, (default: `~/llm-engines/generation_cache`)
 - `overwrite_cache`: whether to overwrite the cache (default: False)
 - `dtype`: the data type to use (default: "auto"; {auto,half,float16,bfloat16,float,float32})
+- `quantization`: specify the quantization type, one of {aqlm,awq,deepspeedfp,tpu_int8,fp8,fbgemm_fp8,marlin,gguf,gptq_marlin_24,gptq_marlin,awq_marlin,gptq,squeezellm,compressed-tensors,bitsandbytes,qqq,experts_int8} (default: None)
 - `max_retry`: the maximum number of retries for the request (default: None)
 - `completion`: whether to use the completion API; If you use completion, (default: False)
 

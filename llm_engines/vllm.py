@@ -20,6 +20,7 @@ def launch_vllm_worker(
     num_gpus: int=None,
     gpu_ids: List[int]=None,
     dtype: str="auto",
+    quantization: str=None,
     port: int=34200,
     host: str="127.0.0.1",
     root_path: str=None,
@@ -102,6 +103,14 @@ def launch_vllm_worker(
         ]
     else:
         lora_args = []
+    if quantization:
+        available_quantizations = "aqlm,awq,deepspeedfp,tpu_int8,fp8,fbgemm_fp8,marlin,gguf,gptq_marlin_24,gptq_marlin,awq_marlin,gptq,squeezellm,compressed-tensors,bitsandbytes,qqq,experts_int8"
+        available_quantizations = available_quantizations.split(",")
+        if quantization not in available_quantizations:
+            raise ValueError(f"quantization {quantization} not in available quantizations: {available_quantizations}")
+        lora_args += ["--quantization", quantization]
+        if quantization == "bitsandbytes":
+            lora_args += ["--load-format", "bitsandbytes", "--enforce-eager"]
     # python -m vllm.entrypoints.openai.api_server --model NousResearch/Meta-Llama-3-8B-Instruct --dtype auto --api-key token-abc123
     proc = SubprocessMonitor([
         "python3", "-m", "vllm.entrypoints.openai.api_server",

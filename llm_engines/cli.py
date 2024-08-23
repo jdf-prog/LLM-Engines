@@ -13,6 +13,7 @@ class Cli:
         num_gpus: int=1,
         gpu_ids: List[int]=None,
         dtype: str="auto",
+        quantization: str=None,
         port: Union[int,None] =None,
         host: str="127.0.0.1",
     ) -> str:
@@ -39,6 +40,7 @@ class Cli:
             num_gpus=num_gpus,
             gpu_ids=gpu_ids,
             dtype=dtype,
+            quantization=quantization,
             port=port,
             host=host
         )

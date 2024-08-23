@@ -16,6 +16,7 @@ def launch_sglang_worker(
     num_gpus: int=None,
     gpu_ids: List[int]=None,
     dtype: str="auto",
+    quantization: str=None,
     port: int=34200,
     host: str="127.0.0.1",
 ) -> str:
@@ -51,6 +52,12 @@ def launch_sglang_worker(
     else:
         print("flashinfer found, enable flashinfer for sglang")
         flashinfer_args = []
+    if quantization:
+        available_quantizations = "awq,fp8,gptq,marlin,gptq_marlin,awq_marlin,squeezellm,bitsandbytes"
+        available_quantizations = available_quantizations.split(",")
+        if quantization not in available_quantizations:
+            raise ValueError(f"Quantization {quantization} not supported, available quantizations: {available_quantizations}")
+        flashinfer_args = ["--quantization", quantization]
     additonal_ports = [port+i for i in range(1, 9)]
     proc = SubprocessMonitor([
         "python3", "-m", "sglang.launch_server",

@@ -24,6 +24,7 @@ def get_call_worker_func(
     num_workers=1,
     num_gpu_per_worker=1,
     dtype="auto",
+    quantization=None,
     engine="vllm",
     max_retry=None,
     verbose=False
@@ -99,7 +100,7 @@ def get_call_worker_func(
                     num_gpus=num_gpu_per_worker, 
                     gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker], 
                     port=start_port+i*10,
-                    dtype=dtype)
+                    dtype=dtype, quantization=quantization)
                 worker_addrs.append(worker_addr)
                 workers.append(worker)
         else:
