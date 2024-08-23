@@ -74,13 +74,16 @@ class ChatTokenizer:
         return prompt
     
     def example_prompt(self):
-        example_messages = [
-            {"role": "user", "content": "Hello"},
-            {"role": "assistant", "content": "Hi"},
-            {"role": "user", "content": "How are you?"},
-            {"role": "assistant", "content": "I'm good, how about you?"},
-        ]
-        return self.apply_chat_template(example_messages)
+        if not self.apply_chat_template:
+            return "Chat template not available for this model"
+        else:
+            example_messages = [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi"},
+                {"role": "user", "content": "How are you?"},
+                {"role": "assistant", "content": "I'm good, how about you?"},
+            ]
+            return self.apply_chat_template(example_messages)
     
     def __call__(self, messages:List[str], **kwargs):
         if not self.apply_chat_template:
