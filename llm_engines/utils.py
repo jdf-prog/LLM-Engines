@@ -55,7 +55,8 @@ class ChatTokenizer:
             print("Using hugging face chat template for model", model_name)
             self.chat_template_source = "huggingface"
         else:
-            raise NotImplementedError("Chat template not implemented for model", model_name)
+            self.apply_chat_template = None
+            self.chat_template_source = None
         print("Example prompt: \n", self.example_prompt())
         
     def apply_chat_template_default(
@@ -82,6 +83,8 @@ class ChatTokenizer:
         return self.apply_chat_template(example_messages)
     
     def __call__(self, messages:List[str], **kwargs):
+        if not self.apply_chat_template:
+            raise NotImplementedError("Chat template not available for this model")
         return self.apply_chat_template(messages, **kwargs)
 
 
