@@ -128,7 +128,6 @@ def launch_vllm_worker(
         chat_tokenizers[model_name] = ChatTokenizer(base_model_name_or_path)
     if base_model_name_or_path not in chat_tokenizers:
         chat_tokenizers[base_model_name_or_path] = ChatTokenizer(base_model_name_or_path)
-    time.sleep(10) # used to wait for vllm rpc zmq ready, otherwise vllm:0.5.4 will raise error
     return f"http://127.0.0.1:{port}", proc
 
 def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
