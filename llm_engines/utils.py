@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Union, List
 from typing import List
 from transformers import AutoTokenizer
+from .cache import load_cache, get_inputs_hash, get_cache_file
 
 default_gen_params = {
     "temperature": 0.0,
@@ -130,55 +131,42 @@ def convert_messages_wrapper(call_model_worker, is_completion=False):
                 generate_kwargs[key] = value
         return call_model_worker(messages, **generate_kwargs)
     return wrapper
-            
-cache_dict = {}
-def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, overwrite_cache=False):
-    print(f"Using cache for model {model_name}")
-    if cache_dir is not None:
-        cache_file = Path(cache_dir) / f"{model_name}.jsonl"
-    else:
-        # cache_file = Path(os.path.abspath(__file__)).parent / "generation_cache" / f"{model_name}.jsonl"
-        cache_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache/{model_name}.jsonl"))
-    if cache_file.exists():
-        print(f"Cache file exists at {cache_file}")
-    print(f"Each single input will be cached in hash-input:output format in {cache_file}")
-    def wrapper(inputs:Union[str, List[str]], **generate_kwargs):
-        global cache_dict
-        if cache_dir is not None:
-            cache_file = Path(cache_dir) / f"{model_name}.jsonl"
-        else:
-            # cache_file = Path(os.path.abspath(__file__)).parent.parent / "generation_cache" / f"{model_name}.jsonl"
-            cache_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache/{model_name}.jsonl"))
-        if model_name not in cache_dict:
-            if cache_file.exists():
-                with open(cache_file, "r") as f:
-                    model_cache_dict = [json.loads(line) for line in f.readlines()]
-                model_cache_dict = {list(item.keys())[0]: list(item.values())[0] for item in model_cache_dict}
-                cache_dict[model_name] = model_cache_dict
-            else:
-                cache_file.parent.mkdir(parents=True, exist_ok=True)
-                cache_dict[model_name] = {}
 
-        conv_system_msg = generate_kwargs.get("conv_system_msg", None)
-        if isinstance(inputs, str):
-            inputs_hash = hashlib.md5(inputs.encode()).hexdigest()
-        else:
-            if conv_system_msg:
-                inputs_hash = hashlib.md5((conv_system_msg+"".join(inputs)).encode()).hexdigest()
-            else:
-                inputs_hash = hashlib.md5("".join(inputs).encode()).hexdigest()
-        if not overwrite_cache and inputs_hash in cache_dict[model_name]:
-            return cache_dict[model_name][inputs_hash]["output"]
-        else:
-            generated_text = call_model_worker(inputs, **generate_kwargs)
-            cache_dict[model_name][inputs_hash] = {
-                "input": inputs, "output": generated_text, 
-                "model_name": model_name, 'tstamp': time.time(), 
-                "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), 
-                "generate_kwargs": generate_kwargs}
-            with open(cache_file, "a+") as f:
-                f.write(json.dumps({inputs_hash: cache_dict[model_name][inputs_hash]}, ensure_ascii=False) + "\n")
-            return generated_text
+def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, overwrite_cache=False):
+    print(f"Using efficient multi-level cache for model {model_name}")
+    if cache_dir is None:
+        cache_dir = Path(os.path.expanduser(f"~/llm_engines/generation_cache"))
+    print(f"Cache directory: {cache_dir}")
+    
+    def wrapper(inputs: Union[str, List[str]], **generate_kwargs):
+        cache_dict = load_cache(model_name, cache_dir)
+        
+        conv_system_msg = generate_kwargs.get("conv_system_msg", "")
+        inputs_hash = get_inputs_hash(inputs, conv_system_msg)
+        
+        if not overwrite_cache:
+            cached_value = cache_dict[inputs_hash]
+            if cached_value:
+                return cached_value["output"]
+        
+        generated_text = call_model_worker(inputs, **generate_kwargs)
+        cache_item = {
+            "input": inputs,
+            "output": generated_text,
+            "model_name": model_name,
+            'tstamp': time.time(),
+            "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
+            "generate_kwargs": generate_kwargs
+        }
+        
+        cache_dict[inputs_hash] = cache_item
+        
+        cache_file = get_cache_file(model_name, cache_dir)
+        with open(cache_file, "a+") as f:
+            f.write(json.dumps({inputs_hash: cache_item}) + "\n")
+        
+        return generated_text
+    
     return wrapper
 
 class MaxRetriesExceededError(Exception):
