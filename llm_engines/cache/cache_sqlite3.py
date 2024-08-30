@@ -168,9 +168,10 @@ def load_cache(model_name, cache_dir=None):
         
         if cache_file.exists():
             print("Cache file exists at:", cache_file.absolute())
+            print(f"Loading cache for {model_name} from {cache_file}")
             initial_data = {}
             with open(cache_file, 'r') as f:
-                for line in tqdm(f, desc="Loading cache for model: " + model_name):
+                for line in f:
                     data = json.loads(line)
                     key = list(data.keys())[0]
                     initial_data[key] = data[key]
