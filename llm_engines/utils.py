@@ -137,6 +137,7 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, over
     if cache_dir is None:
         cache_dir = Path(os.path.expanduser(f"~/llm_engines/generation_cache"))
     print(f"Cache directory: {cache_dir}")
+    load_cache(model_name, cache_dir) # preload cache
     
     def wrapper(inputs: Union[str, List[str]], **generate_kwargs):
         cache_dict = load_cache(model_name, cache_dir)

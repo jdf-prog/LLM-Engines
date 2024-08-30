@@ -2,25 +2,44 @@ import json
 import os
 import shutil
 import atexit
+import sqlite3
+import mmap
+import threading
+import struct
+from .cache_utils import get_cache_file
 from pathlib import Path
 from typing import Union, List, Dict
 from cachetools import LRUCache
-import sqlite3
 from tqdm import tqdm
-from .cache_utils import get_cache_file
 
-BLOCK_SIZE = 1000
-MAX_CACHE_SIZE = 100000  # Example: 100k items
+BLOCK_SIZE = 3072 * 1024  # 3MB
+MAX_CACHE_SIZE = 10000  # Example: 10k items
+MAX_MEMORY_BLOCKS = 32 # Example: 32 blocks
 # Global cache dictionary using MultiLevelCache
 cache_dict = {}
 
+class BlockCache:
+    def __init__(self, max_size=MAX_MEMORY_BLOCKS):
+        self.cache = LRUCache(maxsize=max_size)
+        self.lock = threading.Lock()
+
+    def get(self, block_id):
+        with self.lock:
+            return self.cache.get(block_id)
+
+    def set(self, block_id, data):
+        with self.lock:
+            self.cache[block_id] = data
+
 class EfficientDiskCache:
-    def __init__(self, cache_dir, model_name, block_size=BLOCK_SIZE):
+    def __init__(self, cache_dir, model_name, block_size=BLOCK_SIZE, max_memory_blocks=MAX_MEMORY_BLOCKS):
         self.cache_dir = Path(cache_dir) / model_name
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.model_name = model_name
         self.block_size = block_size
         self.index_db = self.cache_dir / "index.db"
+        self.block_cache = BlockCache(max_size=max_memory_blocks)
+        self.db_lock = threading.Lock()
         self.init_index_db()
 
     def __del__(self):
@@ -35,94 +54,134 @@ class EfficientDiskCache:
             print(f"Error during cleanup: {e}")
 
     def init_index_db(self):
-        with sqlite3.connect(self.index_db) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS cache_index
-                (key TEXT PRIMARY KEY, block_id INTEGER, offset INTEGER)
-            ''')
-            conn.commit()
+        with self.db_lock:
+            with sqlite3.connect(self.index_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS cache_index
+                    (key TEXT PRIMARY KEY, block_id INTEGER, offset INTEGER, length INTEGER)
+                ''')
+                conn.commit()
 
     def get_block_file(self, block_id):
-        return self.cache_dir / f"block_{block_id}.json"
+        return self.cache_dir / f"block_{block_id}.bin"
 
     def get(self, key):
-        with sqlite3.connect(self.index_db) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT block_id, offset FROM cache_index WHERE key = ?", (key,))
-            result = cursor.fetchone()
-            if result:
-                block_id, offset = result
+        with self.db_lock:
+            with sqlite3.connect(self.index_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT block_id, offset, length FROM cache_index WHERE key = ?", (key,))
+                result = cursor.fetchone()
+        
+        if result:
+            block_id, offset, length = result
+            block_data = self.block_cache.get(block_id)
+            if block_data is None:
                 block_file = self.get_block_file(block_id)
                 if block_file.exists():
-                    with open(block_file, 'r') as f:
-                        f.seek(offset)
-                        return json.loads(f.readline().strip())
+                    try:
+                        with open(block_file, 'rb') as f:
+                            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+                            block_data = mm.read()
+                        self.block_cache.set(block_id, block_data)
+                    except Exception as e:
+                        print(f"Error reading block file: {e}")
+                        return None
+                else:
+                    return None
+            
+            try:
+                data = block_data[offset:offset+length]
+                value_length = struct.unpack('!I', data[:4])[0]
+                json_data = data[4:4+value_length].decode('utf-8')
+                return json.loads(json_data)
+            except (struct.error, json.JSONDecodeError, UnicodeDecodeError) as e:
+                print(f"Error decoding data: {e}")
+                return None
         return None
 
     def set(self, key, value):
-        with sqlite3.connect(self.index_db) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT MAX(block_id) FROM cache_index")
-            result = cursor.fetchone()
-            current_block_id = result[0] if result[0] is not None else 0
-            
-            block_file = self.get_block_file(current_block_id)
-            if block_file.exists():
-                file_size = block_file.stat().st_size
-                if file_size >= self.block_size * 1024:  # Start a new block if current one is full
-                    current_block_id += 1
-                    block_file = self.get_block_file(current_block_id)
-                    file_size = 0
-            else:
-                file_size = 0
+        json_data = json.dumps(value).encode('utf-8')
+        data_length = len(json_data)
+        full_data = struct.pack('!I', data_length) + json_data
 
-            with open(block_file, 'a') as f:
-                f.seek(file_size)
-                json_line = json.dumps({key: value}) + '\n'
-                f.write(json_line)
+        with self.db_lock:
+            with sqlite3.connect(self.index_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT MAX(block_id) FROM cache_index")
+                result = cursor.fetchone()
+                current_block_id = result[0] if result[0] is not None else 0
                 
-            cursor.execute('''
-                INSERT OR REPLACE INTO cache_index (key, block_id, offset)
-                VALUES (?, ?, ?)
-            ''', (key, current_block_id, file_size))
-            conn.commit()
-
-    def bulk_insert(self, data: Dict[str, Dict]):
-        with sqlite3.connect(self.index_db) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT MAX(block_id) FROM cache_index")
-            result = cursor.fetchone()
-            current_block_id = result[0] if result[0] is not None else 0
-            
-            block_file = self.get_block_file(current_block_id)
-            if block_file.exists():
-                file_size = block_file.stat().st_size
-            else:
-                file_size = 0
-
-            index_data = []
-            
-            with open(block_file, 'a') as f:
-                for key, value in tqdm(data.items(), desc="Bulk inserting into Disk Cache"):
-                    if file_size >= self.block_size * 1024:
+                block_file = self.get_block_file(current_block_id)
+                if block_file.exists():
+                    file_size = block_file.stat().st_size
+                    if file_size + len(full_data) > self.block_size:
                         current_block_id += 1
                         block_file = self.get_block_file(current_block_id)
                         file_size = 0
-                    
-                    f.seek(file_size)
-                    json_line = json.dumps({key: value}) + '\n'
-                    f.write(json_line)
-                    
-                    index_data.append((key, current_block_id, file_size))
-                    file_size += len(json_line)
+                else:
+                    file_size = 0
 
-            cursor.executemany('''
-                INSERT OR REPLACE INTO cache_index (key, block_id, offset)
-                VALUES (?, ?, ?)
-            ''', index_data)
-            conn.commit()
+                with open(block_file, 'ab') as f:
+                    f.write(full_data)
+                    
+                cursor.execute('''
+                    INSERT OR REPLACE INTO cache_index (key, block_id, offset, length)
+                    VALUES (?, ?, ?, ?)
+                ''', (key, current_block_id, file_size, len(full_data)))
+                conn.commit()
 
+        block_data = self.block_cache.get(current_block_id)
+        if block_data is not None:
+            self.block_cache.set(current_block_id, block_data + full_data)
+
+    def bulk_insert(self, data: Dict[str, Dict]):
+        with self.db_lock:
+            with sqlite3.connect(self.index_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT MAX(block_id) FROM cache_index")
+                result = cursor.fetchone()
+                current_block_id = result[0] if result[0] is not None else 0
+                
+                block_file = self.get_block_file(current_block_id)
+                if block_file.exists():
+                    file_size = block_file.stat().st_size
+                else:
+                    file_size = 0
+
+                index_data = []
+                current_block_data = b""
+                
+                for key, value in data.items():
+                    json_data = json.dumps(value).encode('utf-8')
+                    data_length = len(json_data)
+                    full_data = struct.pack('!I', data_length) + json_data
+                    
+                    if file_size + len(full_data) > self.block_size:
+                        with open(block_file, 'ab') as f:
+                            f.write(current_block_data)
+                        self.block_cache.set(current_block_id, current_block_data)
+                        
+                        current_block_id += 1
+                        block_file = self.get_block_file(current_block_id)
+                        file_size = 0
+                        current_block_data = b""
+                    
+                    index_data.append((key, current_block_id, file_size, len(full_data)))
+                    current_block_data += full_data
+                    file_size += len(full_data)
+
+                if current_block_data:
+                    with open(block_file, 'ab') as f:
+                        f.write(current_block_data)
+                    self.block_cache.set(current_block_id, current_block_data)
+
+                cursor.executemany('''
+                    INSERT OR REPLACE INTO cache_index (key, block_id, offset, length)
+                    VALUES (?, ?, ?, ?)
+                ''', index_data)
+                conn.commit()
+                            
 class MultiLevelCache:
     def __init__(self, model_name, cache_dir, memory_size=MAX_CACHE_SIZE):
         self.memory_cache = LRUCache(maxsize=memory_size)
@@ -168,12 +227,11 @@ def load_cache(model_name, cache_dir=None):
         
         if cache_file.exists():
             print("Cache file exists at:", cache_file.absolute())
-            print(f"Loading cache for {model_name} from {cache_file}")
             initial_data = {}
             with open(cache_file, 'r') as f:
-                for line in f:
+                for line in tqdm(f, desc="Loading cache for model: " + model_name):
                     data = json.loads(line)
-                    key = list(data.keys())[0]
+                    key = list(data.keys())[0]  
                     initial_data[key] = data[key]
             if initial_data:
                 cache_dict[model_name].bulk_insert(initial_data)
@@ -182,6 +240,7 @@ def load_cache(model_name, cache_dir=None):
 # Cleanup function to be called at exit
 def cleanup_all_caches():
     global cache_dict
+    print("Cleaning up all caches...")
     for model_name, cache in cache_dict.items():
         cache.disk_cache.cleanup()
     cache_dict.clear()
