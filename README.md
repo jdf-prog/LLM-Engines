@@ -134,7 +134,8 @@ python examples/mp_inference_wildchat.py
 ```
 
 ### Cache
-all the queries and responses are cached in the `generation_cache` folder, no duplicate queries will be sent to the model.
+
+if `use_cache=True`, all the queries and responses are cached in the `generation_cache` folder, no duplicate queries will be sent to the model.
 The cache of each model is saved to `generation_cache/{model_name}.jsonl`
 
 Example items in the cache:
@@ -223,7 +224,7 @@ When setting `temperature=0.0` and `max_tokens=None`, testing long generations:
 
 ```bibtex
 @misc{jiang2024llmengines,
-  title = {LLM-Engines: A unified inference engine for large language models (LLMs) including open-source models (VLLM, SGLang, Together) and commercial models (OpenAI, Mistral, Claude)},
+  title = {LLM-Engines: A unified and parallel inference engine for large language models},
   author = {Dongfu Jiang},
   year = {2024},
   publisher = {GitHub},
