@@ -28,7 +28,7 @@ setup(
         "numpy",
         "requests",
         "sentencepiece",
-        "vllm",
+        "vllm>=0.5.5",
         "together",
         "icecream",
         "prettytable",
