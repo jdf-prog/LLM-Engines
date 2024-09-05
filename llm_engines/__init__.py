@@ -5,7 +5,7 @@ import atexit
 import psutil
 import subprocess
 from functools import partial
-from .utils import generation_cache_wrapper, retry_on_failure, convert_messages_wrapper, SubprocessMonitor
+from .utils import generation_cache_wrapper, retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError
 from typing import Union, List
 
 import importlib.util
