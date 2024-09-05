@@ -135,7 +135,11 @@ def convert_messages_wrapper(call_model_worker, is_completion=False):
 def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, overwrite_cache=False):
     print(f"Using efficient multi-level cache for model {model_name}")
     if cache_dir is None:
-        cache_dir = Path(os.path.expanduser(f"~/llm_engines/generation_cache"))
+        env_cache_dir = os.getenv("LLM_ENGINES_CACHE_DIR")
+        if env_cache_dir:
+            cache_dir = Path(env_cache_dir)
+        else:
+            cache_dir = Path(os.path.expanduser(f"~/llm_engines/generation_cache"))
     print(f"Cache directory: {cache_dir}")
     load_cache(model_name, cache_dir) # preload cache
     
