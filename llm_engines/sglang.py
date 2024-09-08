@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List
 
 from sglang import function, system, user, assistant, gen
-from .utils import SubprocessMonitor, ChatTokenizer, with_timeout
+from .utils import SubprocessMonitor, ChatTokenizer, with_timeout, get_function_arg_names
 worker_initiated = False
 sglang_workers = {}
 def launch_sglang_worker(
@@ -117,6 +117,13 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_
     )
     
     generate_kwargs['max_tokens'] = generate_kwargs.get('max_tokens', chat_tokenizer.max_length) # for sglang, max_tokens is required and must > 0
+    args_names, kwargs_names = get_function_arg_names(client.chat.completions.create)
+    extra_body_params = {}
+    for key in list(generate_kwargs.keys()):
+        if key not in args_names + kwargs_names:
+            extra_body_params[key] = generate_kwargs[key]
+            del generate_kwargs[key]
+    generate_kwargs["extra_body"] = extra_body_params
     
     @with_timeout(timeout)
     def get_response():
@@ -159,6 +166,13 @@ def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:
     )
     
     generate_kwargs['max_tokens'] = generate_kwargs.get('max_tokens', chat_tokenizer.max_length) # for sglang, max_tokens is required and must > 0
+    args_names, kwargs_names = get_function_arg_names(client.completions.create)
+    extra_body_params = {}
+    for key in list(generate_kwargs.keys()):
+        if key not in args_names + kwargs_names:
+            extra_body_params[key] = generate_kwargs[key]
+            del generate_kwargs[key]
+    generate_kwargs["extra_body"] = extra_body_params
     
     @with_timeout(timeout)
     def get_response():

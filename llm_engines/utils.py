@@ -9,6 +9,7 @@ import hashlib
 import traceback
 import threading
 import openai
+import inspect
 from pathlib import Path
 from typing import Union, List
 from typing import List
@@ -232,3 +233,20 @@ def with_timeout(timeout):
             return result[0]
         return wrapper
     return decorator
+
+def get_function_arg_names(func):
+    signature = inspect.signature(func)
+    parameters = signature.parameters
+    
+    arg_names = []
+    kwarg_names = []
+    
+    for name, param in parameters.items():
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            arg_names.append(f"*{name}")
+        elif param.kind == inspect.Parameter.VAR_KEYWORD:
+            kwarg_names.append(f"**{name}")
+        else:
+            arg_names.append(name)
+    
+    return arg_names, kwarg_names

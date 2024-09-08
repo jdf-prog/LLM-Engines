@@ -9,7 +9,7 @@ import signal
 import regex as re
 from pathlib import Path
 from typing import List
-from .utils import SubprocessMonitor, ChatTokenizer, with_timeout
+from .utils import SubprocessMonitor, ChatTokenizer, with_timeout, get_function_arg_names
 from huggingface_hub import HfApi, hf_hub_download, snapshot_download
 worker_initiated = False
 
@@ -158,6 +158,13 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
         base_url=f"{worker_addr}/v1",
         # api_key="vllm-engine-token",
     )
+    args_names, kwargs_names = get_function_arg_names(client.chat.completions.create)
+    extra_body_params = {}
+    for key in list(generate_kwargs.keys()):
+        if key not in args_names + kwargs_names:
+            extra_body_params[key] = generate_kwargs[key]
+            del generate_kwargs[key]
+    generate_kwargs["extra_body"] = extra_body_params
     
     @with_timeout(timeout)
     def get_response():
@@ -210,6 +217,15 @@ def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:in
         base_url=f"{worker_addr}/v1",
         api_key="vllm-engine-token",
     )
+    
+    args_names, kwargs_names = get_function_arg_names(client.completions.create)
+    extra_body_params = {}
+    for key in list(generate_kwargs.keys()):
+        if key not in args_names + kwargs_names:
+            extra_body_params[key] = generate_kwargs[key]
+            del generate_kwargs[key]
+    generate_kwargs["extra_body"] = extra_body_params
+    
     
     @with_timeout(timeout)
     def get_response():
