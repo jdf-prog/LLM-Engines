@@ -35,6 +35,7 @@ setup(
         "sglang[all]",
         "mistralai",
         "anthropic",
+        "fastapi<=0.112.2"
     ],
     extras_require={
         "flash-attn": {

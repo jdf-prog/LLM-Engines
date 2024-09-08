@@ -181,6 +181,9 @@ There will be errors if the model does not support the chat template.
 - `presence_penalty`: Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. (default: 0.0)
 - `n`: Number of completions to generate for each prompt. (**Do not support for llm-engines for now**) (default: 1)
 - `conv_system_msg`: The system message for multi-turn conversation; If the meessage contains a system message, this parameter will be overwritten (default: None)
+- all the other parameters that are supported by different engines.
+    - for openai and sglang, check out [openai](https://platform.openai.com/docs/api-reference/chat)
+    - for extra paramters of vllm, check out [vllm](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html#extra-parameters)
 
 ### Launch a separate vllm/sglang model worker
 
