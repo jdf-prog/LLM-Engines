@@ -7,12 +7,8 @@ from pathlib import Path
 
 @lru_cache(maxsize=None)
 def get_cache_file(model_name_or_path, cache_dir):
-    if os.exists(model_name_or_path):
-        # only keep the last 2 //
-        model_name = model_name_or_path.split("/")[-2:]
-        model_name = "/".join(model_name)
-    else:
-        model_name = model_name_or_path
+    model_name = model_name_or_path.split("/")[-2:]
+    model_name = "/".join(model_name)
     if cache_dir is not None:
         cache_file = Path(cache_dir) / f"{model_name}.jsonl"
     else:
