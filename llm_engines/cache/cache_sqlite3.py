@@ -33,7 +33,7 @@ class BlockCache:
 
 class EfficientDiskCache:
     def __init__(self, cache_dir, model_name, block_size=BLOCK_SIZE, max_memory_blocks=MAX_MEMORY_BLOCKS):
-        self.cache_dir = Path(cache_dir) / model_name
+        self.cache_dir = Path(cache_dir) / f"{model_name}_disk_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.model_name = model_name
         self.block_size = block_size

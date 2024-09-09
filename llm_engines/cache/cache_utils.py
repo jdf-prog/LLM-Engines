@@ -6,10 +6,21 @@ import hashlib
 from pathlib import Path
 
 @lru_cache(maxsize=None)
-def get_cache_file(model_name, cache_dir):
+def get_cache_file(model_name_or_path, cache_dir):
+    if os.exists(model_name_or_path):
+        # only keep the last 2 //
+        model_name = model_name_or_path.split("/")[-2:]
+        model_name = "/".join(model_name)
+    else:
+        model_name = model_name_or_path
     if cache_dir is not None:
-        return Path(cache_dir) / f"{model_name}.jsonl"
-    return Path(os.path.expanduser(f"~/llm_engines/generation_cache/{model_name}.jsonl"))
+        cache_file = Path(cache_dir) / f"{model_name}.jsonl"
+    else:
+        cache_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache/{model_name}.jsonl"))
+    if not cache_file.parent.exists():
+        cache_file.parent.mkdir(parents=True)
+    return cache_file
+
 
 def get_inputs_hash(inputs, conv_system_msg):
     if isinstance(inputs, str):
