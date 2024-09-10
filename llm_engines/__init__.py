@@ -7,6 +7,7 @@ import subprocess
 from functools import partial
 from .utils import generation_cache_wrapper, retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError
 from typing import Union, List
+from tqdm import tqdm
 
 import importlib.util
 flash_attn = importlib.util.find_spec("flash_attn")
@@ -360,6 +361,36 @@ class LLMEngine:
             raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
         return call_model_worker(messages, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
     
+    def batch_call_model(
+        self,
+        model_name,
+        batch_messages:List[Union[List[str], List[dict], str]],
+        timeout:int=60,
+        conv_system_msg=None,
+        num_proc=8,
+        **generate_kwargs
+    ):
+        """
+        Batch call a model
+        Args:
+            model_name: model name
+            batch_messages: list of list of messages in openai format or list of strings
+            timeout: timeout
+            conv_system_msg: conversation system message
+            num_proc: number of processes
+            generate_kwargs: generation arguments
+        """
+        call_model_worker = self.loaded_model_call_func.get(model_name)
+        if call_model_worker is None:
+            raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
+        from functools import partial
+        from multiprocessing import Pool
+        num_proc = min(num_proc, len(batch_messages))
+        call_model_worker = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+        with Pool(num_proc) as p:
+            results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc="LLMEngine Batch Inference"))
+        return results
+    
     def __call__(self, *args, **kwds):
         return self.call_model(*args, **kwds)
     
@@ -375,4 +406,5 @@ class LLMEngine:
         
     def __del__(self):
         self.unload_model()
+        
         

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Union, List
 from typing import List
 from transformers import AutoTokenizer
+from functools import partial
 from .cache import load_cache, get_inputs_hash, get_cache_file
 
 default_gen_params = {
@@ -119,19 +120,49 @@ def convert_messages(messages:Union[List[str], List[dict], str]):
         assert all(isinstance(item, str) for item in messages)
         return messages, None
 
+def _convert_messages_wrapper(messages:Union[List[str], List[dict], str], call_model_worker, is_completion=False, **generate_kwargs):
+    if not is_completion:
+        messages, conv_system_msg = convert_messages(messages)
+        generate_kwargs["conv_system_msg"] = conv_system_msg
+    else:
+        assert isinstance(messages, str), "Completion model only accepts a single string input"
+    # add default generation parameters
+    for key, value in default_gen_params.items():
+        if key not in generate_kwargs:
+            generate_kwargs[key] = value
+    return call_model_worker(messages, **generate_kwargs)
+
 def convert_messages_wrapper(call_model_worker, is_completion=False):
-    def wrapper(messages:Union[List[str], List[dict], str], **generate_kwargs):
-        if not is_completion:
-            messages, conv_system_msg = convert_messages(messages)
-            generate_kwargs["conv_system_msg"] = conv_system_msg
-        else:
-            assert isinstance(messages, str), "Completion model only accepts a single string input"
-        # add default generation parameters
-        for key, value in default_gen_params.items():
-            if key not in generate_kwargs:
-                generate_kwargs[key] = value
-        return call_model_worker(messages, **generate_kwargs)
-    return wrapper
+    return partial(_convert_messages_wrapper, call_model_worker=call_model_worker, is_completion=is_completion)
+
+def _generation_cache_wrapper(inputs: Union[str, List[str]], call_model_worker, model_name, cache_dir=None, overwrite_cache=False, **generate_kwargs):
+    cache_dict = load_cache(model_name, cache_dir)
+    
+    conv_system_msg = generate_kwargs.get("conv_system_msg", "")
+    inputs_hash = get_inputs_hash(inputs, conv_system_msg)
+    
+    if not overwrite_cache:
+        cached_value = cache_dict[inputs_hash]
+        if cached_value:
+            return cached_value["output"]
+    
+    generated_text = call_model_worker(inputs, **generate_kwargs)
+    cache_item = {
+        "input": inputs,
+        "output": generated_text,
+        "model_name": model_name,
+        'tstamp': time.time(),
+        "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
+        "generate_kwargs": generate_kwargs
+    }
+    
+    cache_dict[inputs_hash] = cache_item
+    
+    cache_file = get_cache_file(model_name, cache_dir)
+    with open(cache_file, "a+") as f:
+        f.write(json.dumps({inputs_hash: cache_item}) + "\n")
+    
+    return generated_text
 
 def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, overwrite_cache=False):
     print(f"Using efficient multi-level cache for model {model_name}")
@@ -144,67 +175,42 @@ def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, over
     print(f"Cache directory: {cache_dir}")
     load_cache(model_name, cache_dir) # preload cache
     
-    def wrapper(inputs: Union[str, List[str]], **generate_kwargs):
-        cache_dict = load_cache(model_name, cache_dir)
-        
-        conv_system_msg = generate_kwargs.get("conv_system_msg", "")
-        inputs_hash = get_inputs_hash(inputs, conv_system_msg)
-        
-        if not overwrite_cache:
-            cached_value = cache_dict[inputs_hash]
-            if cached_value:
-                return cached_value["output"]
-        
-        generated_text = call_model_worker(inputs, **generate_kwargs)
-        cache_item = {
-            "input": inputs,
-            "output": generated_text,
-            "model_name": model_name,
-            'tstamp': time.time(),
-            "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
-            "generate_kwargs": generate_kwargs
-        }
-        
-        cache_dict[inputs_hash] = cache_item
-        
-        cache_file = get_cache_file(model_name, cache_dir)
-        with open(cache_file, "a+") as f:
-            f.write(json.dumps({inputs_hash: cache_item}) + "\n")
-        
-        return generated_text
-    
-    return wrapper
-
+    return partial(_generation_cache_wrapper, call_model_worker=call_model_worker, model_name=model_name, cache_dir=cache_dir, overwrite_cache=overwrite_cache)
 class MaxRetriesExceededError(Exception):
     pass
 
 short_error_instances = [
     openai.BadRequestError,
 ]
-def retry_on_failure(call_model_worker, num_retries=5):
-    def wrapper(*args, **kwargs):
-        try:
-            return call_model_worker(*args, **kwargs)
-        except Exception as e:
-            if not num_retries:
-                if any(isinstance(e, error_instance) for error_instance in short_error_instances):
-                    print(str(e))
-                else:
-                    print(traceback.format_exc())
-                raise MaxRetriesExceededError(f"Max retries exceeded for call_model_worker (num_retries={num_retries})")
-            for i in range(num_retries):
-                try:
-                    return call_model_worker(*args, **kwargs)
-                except Exception as e:
-                    print("Error in call_model_worker, retrying... (Error: {})".format(e))
-                    time.sleep(1)
-                    if i >= num_retries - 1 and not isinstance(e, TimeoutError):
-                        if any(isinstance(e, error_instance) for error_instance in short_error_instances):
-                            print(str(e))
-                        else:
-                            # format dump of the last error and
-                            print(traceback.format_exc())
+
+def _retry_on_failure(*args, call_model_worker=None, num_retries=5, **kwargs):
+    if not call_model_worker:
+        raise ValueError("call_model_worker is required")
+    try:
+        return call_model_worker(*args, **kwargs)
+    except Exception as e:
+        if not num_retries:
+            if any(isinstance(e, error_instance) for error_instance in short_error_instances):
+                print(str(e))
+            else:
+                print(traceback.format_exc())
             raise MaxRetriesExceededError(f"Max retries exceeded for call_model_worker (num_retries={num_retries})")
+        for i in range(num_retries):
+            try:
+                return call_model_worker(*args, **kwargs)
+            except Exception as e:
+                print("Error in call_model_worker, retrying... (Error: {})".format(e))
+                time.sleep(1)
+                if i >= num_retries - 1 and not isinstance(e, TimeoutError):
+                    if any(isinstance(e, error_instance) for error_instance in short_error_instances):
+                        print(str(e))
+                    else:
+                        # format dump of the last error and
+                        print(traceback.format_exc())
+        raise MaxRetriesExceededError(f"Max retries exceeded for call_model_worker (num_retries={num_retries})")
+    
+def retry_on_failure(call_model_worker, num_retries=5):
+    return partial(_retry_on_failure, call_model_worker=call_model_worker, num_retries=num_retries)
     return wrapper
 
 def timeout_handler(signum, frame):
