@@ -368,6 +368,7 @@ class LLMEngine:
         timeout:int=60,
         conv_system_msg=None,
         num_proc=8,
+        desc=None,
         **generate_kwargs
     ):
         """
@@ -388,7 +389,7 @@ class LLMEngine:
         num_proc = min(num_proc, len(batch_messages))
         call_model_worker = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
         with Pool(num_proc) as p:
-            results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc="LLMEngine Batch Inference"))
+            results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
         return results
     
     def __call__(self, *args, **kwds):
