@@ -24,87 +24,103 @@ pip install flash-attn --no-build-isolation
 ## Usage
 
 ### Engines
-- use sglang or vllm
+- use vllm or sglang 
 ```python
-from llm_engines import get_call_worker_func
-call_worker_func = get_call_worker_func(
+from llm_engines import LLMEngine
+model_name="meta-llama/Meta-Llama-3-8B-Instruct"
+llm = LLMEngine()
+llm.load_model(
     model_name="meta-llama/Meta-Llama-3-8B-Instruct", 
     num_workers=1, # number of workers
     num_gpu_per_worker=1, # tensor parallelism size for each worker
-    engine="sglang", # or "vllm"
+    engine="vllm", # or "sglang"
     use_cache=False
 )
-response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
 print(response)
 ```
 
 - use together
 ```python
 # export TOGETHER_API_KEY="your_together_api_key"
-call_worker_func = get_call_worker_func(
+from llm_engines import LLMEngine
+model_name="meta-llama/Llama-3-8b-chat-hf"
+llm = LLMEngine()
+llm.load_model(
     model_name="meta-llama/Llama-3-8b-chat-hf", 
-    engine="together",
+    engine="together", # or "openai", "mistral", "claude"
     use_cache=False
 )
-response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
 print(response)
 ```
 
 - openai models
 ```python
 # export OPENAI_API_KEY="your_openai_api_key"
-from llm_engines import get_call_worker_func
-call_worker_func = get_call_worker_func(
+from llm_engines import LLMEngine
+model_name="gpt-3.5-turbo"
+llm = LLMEngine()
+llm.load_model(
     model_name="gpt-3.5-turbo", 
-    engine="openai", # or one of "vllm", "together", "openai", "mistral", "claude",
+    engine="openai", # or "vllm", "together", "mistral", "claude"
     use_cache=False
 )
-response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
 print(response)
 ```
 
 - mistral models
 ```python
 # export MISTRAL_API_KEY="your_mistral_api_key"
-from llm_engines import get_call_worker_func
-call_worker_func = get_call_worker_func(
+from llm_engines import LLMEngine
+model_name="mistral-large-latest"
+llm = LLMEngine()
+llm.load_model(
     model_name="mistral-large-latest", 
-    engine="mistral", # or one of "vllm", "together", "openai", "mistral", "claude",
+    engine="mistral", # or "vllm", "together", "openai", "claude"
     use_cache=False
 )
-response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
 print(response)
 ```
 
 - claude models
 ```python
 # export ANTHROPIC_API_KEY="your_claude_api_key"
-from llm_engines import get_call_worker_func
-call_worker_func = get_call_worker_func(
+from llm_engines import LLMEngine
+model_name="claude-3-opus-20240229"
+llm = LLMEngine()
+llm.load_model(
     model_name="claude-3-opus-20240229", 
-    engine="claude", # or one of "vllm", "together", "openai", "mistral", "claude",
+    engine="claude", # or "vllm", "together", "openai", "mistral"
     use_cache=False
 )
-response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
 print(response)
 ```
 
 - gemini models
 ```python
 # export GOOGLE_API_KEY="your_gemini_api_key"
-from llm_engines import get_call_worker_func
-call_worker_func = get_call_worker_func(
+from llm_engines import LLMEngine
+model_name="gemini-1.5-flash"
+llm = LLMEngine()
+llm.load_model(
     model_name="gemini-1.5-flash", 
-    engine="gemini", # or one of "vllm", "together", "openai", "mistral", "claude",
+    engine="gemini", # or "vllm", "together", "openai", "mistral", "claude"
     use_cache=False
 )
-response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
 print(response)
 ```
+
 ### Multi-turn conversation
 ```python
-from llm_engines import get_call_worker_func
-call_worker_func = get_call_worker_func(
+from llm_engines import LLMEngine
+model_name="meta-llama/Meta-Llama-3-8B-Instruct"
+llm = LLMEngine()
+llm.load_model(
     model_name="meta-llama/Meta-Llama-3-8B-Instruct", 
     num_workers=1, # number of workers
     num_gpu_per_worker=1, # tensor parallelism size for each worker
@@ -122,12 +138,40 @@ messages = [
     {"role": "assistant", "content": "Hello! It's nice to meet you. Is there something I can help you with, or would you like to chat?"}, # previous model response
     {"role": "user", "content": "What is the capital of France?"} # user message
 ]
-response = call_worker_func(messages, temperature=0.0, max_tokens=None)
+response = llm.call_model(model_name, messages, temperature=0.0, max_tokens=None)
 print(response)
 ```
-the messages should be in the format of `[user_message, model_response, user_message, model_response, ...]`
+the messages should be in the format of 
+- `[user_message, model_response, user_message, model_response, ...]`
+- or in the format of openai's multi-turn conversation format.
 
-### Parallel infernece
+### Batch inference
+```python
+from llm_engines import LLMEngine
+model_name="meta-llama/Meta-Llama-3-8B-Instruct"
+llm = LLMEngine()
+llm.load_model(
+    model_name="meta-llama/Meta-Llama-3-8B-Instruct", 
+    num_workers=1, # number of workers
+    num_gpu_per_worker=1, # tensor parallelism size for each worker
+    engine="vllm", # or "sglang"
+    use_cache=False
+)
+batch_messages = [
+    "Hello", # user message 
+    "Hello! It's nice to meet you. Is there something I can help you with, or would you like to chat?", # previous model response
+    "What is the capital of France?" # user message
+] * 100
+response = llm.batch_call_model(model_name, messages, num_proc=32, temperature=0.0, max_tokens=None)
+print(response)
+# List of responses [response1, response2, ...]
+```
+Example inference file: [`./examples/batch_inference_wildchat.py`](./examples/batch_inference_wildchat.py)
+```bash
+python examples/batch_inference_wildchat.py
+```
+
+### Parallel infernece throught huggingface dataset map
 Check out [`./examples/mp_inference_wildchat.py`](./examples/mp_inference_wildchat.py) for parallel inference with multiple models.
 ```bash
 python examples/mp_inference_wildchat.py
@@ -156,7 +200,7 @@ prompt = self.tokenizer.apply_chat_template(
 ```
 There will be errors if the model does not support the chat template. 
 
-### Worker initialization parameters
+### Worker initialization parameters (`load_model`)
 - `model_name`: the model name, e.g., "meta-llama/Meta-Llama-3-8B-Instruct" (required)
 - `worker_addrs`: the list of worker addresses to use, if not provided, a new worker will be launched. If provided, it will use the existing workers (default: None)
 - `num_workers`: the number of workers to use for the model (default: 1)
@@ -171,7 +215,7 @@ There will be errors if the model does not support the chat template.
 - `completion`: whether to use the completion API; If you use completion, (default: False)
 
 
-### Generation parameters
+### Generation parameters (`call_model`, `batch_call_model`)
 - `inputs`: the list of inputs for the model; Either a list of strings or a list of dictionaries for multi-turn conversation in openai conversation format; If `completion` is True, it should be a single string (required)
 - `top_p`: the nucleus sampling parameter, 0.0 means no sampling (default: 1.0)
 - `temperature`: the randomness of the generation, 0.0 means deterministic generation (default: 0.0)
