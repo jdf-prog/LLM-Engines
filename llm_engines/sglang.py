@@ -6,8 +6,8 @@ import openai
 import importlib.util
 from pathlib import Path
 from typing import List
-
 from sglang import function, system, user, assistant, gen
+from sglang.srt.utils import allocate_init_ports
 from .utils import SubprocessMonitor, ChatTokenizer, with_timeout, get_function_arg_names
 worker_initiated = False
 sglang_workers = {}
@@ -28,6 +28,11 @@ def launch_sglang_worker(
         the address of the launched model
     """
     # python -m sglang.launch_server --model-path meta-llama/Meta-Llama-3-8B-Instruct --port 30000
+    ### For debug
+    # port, additonal_ports = allocate_init_ports(port)
+    # print(f"Launching SGLang model {model_name} on port {port}")
+    # print(f"Additional ports: {additonal_ports}")
+    ### For debug
     worker_addr = f"http://{host}:{port}"
     log_file = Path(os.path.abspath(__file__)).parent / "logs" / f"{model_name}.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -58,7 +63,7 @@ def launch_sglang_worker(
         if quantization not in available_quantizations:
             raise ValueError(f"Quantization {quantization} not supported, available quantizations: {available_quantizations}")
         flashinfer_args = ["--quantization", quantization]
-    additonal_ports = [port+i for i in range(1, 9)]
+    # additonal_ports = [port+i for i in range(1, 9)]
     proc = SubprocessMonitor([
         "python3", "-m", "sglang.launch_server",
         "--model-path", model_name,
@@ -68,7 +73,7 @@ def launch_sglang_worker(
         # "--api-key", "sglang",
         "--log-level", "warning",
         "--tp-size",  str(num_gpus) if num_gpus is not None else "1",
-        "--additional-ports"] + [str(port) for port in additonal_ports
+        # "--additional-ports"] + [str(port) for port in additonal_ports
     ] + flashinfer_args ,env=env)
     print(f"Launching SGLang model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
     sglang_workers[worker_addr] = proc
@@ -129,6 +134,7 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_
     def get_response():
         while True:
             try:
+                print()
                 completion = client.chat.completions.create(
                     model=model_name,
                     messages=chat_messages,
