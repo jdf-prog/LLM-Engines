@@ -24,6 +24,7 @@ def launch_vllm_worker(
     port: int=34200,
     host: str="127.0.0.1",
     root_path: str=None,
+    additional_args: List[str]=[],
 ) -> str:
     """
     Launch a model worker and return the address
@@ -122,7 +123,7 @@ def launch_vllm_worker(
         "--disable-log-requests",
         "--trust-remote-code",
     ] + (["--root-path", root_path] if root_path else [])
-    + lora_args, env=env)
+    + lora_args + additional_args, env=env)
     print(f"Launched VLLM model {model_name} at address {worker_addr} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
     if model_name not in chat_tokenizers:
         chat_tokenizers[model_name] = ChatTokenizer(base_model_name_or_path)

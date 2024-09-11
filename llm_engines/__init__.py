@@ -49,9 +49,10 @@ def get_call_worker_func(
     dtype="auto",
     quantization=None,
     engine="vllm",
+    additional_args=[],
     max_retry=None,
     verbose=False,
-    return_worker=False
+    return_worker=False,
 ) -> str:
     """
     Return a function that calls the model worker, takes a list of messages (user, gpt, user, ...) and returns the generated text
@@ -66,6 +67,7 @@ def get_call_worker_func(
         num_gpu_per_worker: number of gpus per worker
         dtype: data type
         engine: engine name
+        additional_args: additional arguments for launching the worker (vllm, sglang)
     """
     loaded_wokers = []
     if engine == "openai":
@@ -129,7 +131,7 @@ def get_call_worker_func(
                     num_gpus=num_gpu_per_worker, 
                     gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker], 
                     port=start_port+i*10,
-                    dtype=dtype, quantization=quantization)
+                    dtype=dtype, quantization=quantization, additional_args=additional_args)
                 worker = ModelWorker(model_name, worker_addr, proc, gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker])
                 worker_addrs.append(worker_addr)
                 all_workers.append(worker)
@@ -281,6 +283,7 @@ class LLMEngine:
         dtype="auto",
         quantization=None,
         engine="vllm",
+        additional_args=[],
         max_retry=None,
         verbose=None
     ):
@@ -297,6 +300,9 @@ class LLMEngine:
             num_gpu_per_worker: number of gpus per worker
             dtype: data type
             engine: engine name
+            additional_args: additional arguments for launching the worker (vllm, sglang)
+            max_retry: maximum number of retries
+            verbose: verbose
         """
         verbose = self.verbose or verbose
         if self.workers:
@@ -330,9 +336,10 @@ class LLMEngine:
             dtype=dtype,
             quantization=quantization,
             engine=engine,
+            additional_args=additional_args,
             max_retry=max_retry,
             verbose=verbose,
-            return_worker=True
+            return_worker=True,
         )
 
         self.workers.extend(model_workers)

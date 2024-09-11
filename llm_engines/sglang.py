@@ -19,6 +19,7 @@ def launch_sglang_worker(
     quantization: str=None,
     port: int=34200,
     host: str="127.0.0.1",
+    additional_args: List[str]=[]
 ) -> str:
     """
     Launch a model worker and return the address
@@ -74,7 +75,7 @@ def launch_sglang_worker(
         "--log-level", "warning",
         "--tp-size",  str(num_gpus) if num_gpus is not None else "1",
         # "--additional-ports"] + [str(port) for port in additonal_ports
-    ] + flashinfer_args ,env=env)
+    ] + flashinfer_args + additional_args ,env=env)
     print(f"Launching SGLang model {model_name} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
     sglang_workers[worker_addr] = proc
     return worker_addr, proc

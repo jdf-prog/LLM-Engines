@@ -206,6 +206,7 @@ There will be errors if the model does not support the chat template.
 - `num_workers`: the number of workers to use for the model (default: 1)
 - `num_gpu_per_worker`: the number of GPUs to use for each worker (default: 1)
 - `engine`: the engine to use, one of {vllm, sglang, together, openai, mistral, claude, gemini} (default: "vllm")
+- `additional_args`: list of str, additional arguments for launching the (vllm, sglang) worker, e.g., `["--max-model-len", "65536"]` (default: [])
 - `use_cache`: whether to use the cache for the queries and responses (default: True)
 - `cache_dir`: the cache directory, (default: `~/llm-engines/generation_cache`)
 - `overwrite_cache`: whether to overwrite the cache (default: False)
