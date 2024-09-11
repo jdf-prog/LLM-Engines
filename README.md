@@ -267,8 +267,12 @@ When setting `temperature=0.0` and `max_tokens=None`, testing long generations:
 - SGLang's outputs outputs are sometimes not consistent with others.
 - note that some weird inputs will cause the models to inference forever, it's better to set `timeout` (default: 300) to drop the request after certain seconds.
 - Bug: [issue](https://github.com/vllm-project/vllm/issues/7196) of `vllm==0.5.4` when num_workers > 1, use `vllm==0.5.5` instead.
-## Citation
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=jdf-prog/LLM-Engines&type=Date)](https://star-history.com/#jdf-prog/LLM-Engines&Date)
+
+## Citation
 ```bibtex
 @misc{jiang2024llmengines,
   title = {LLM-Engines: A unified and parallel inference engine for large language models},
