@@ -12,25 +12,47 @@ def call_worker_openai(messages:List[str], model_name, timeout:int=60, conv_syst
     # initialize openai client
     client = OpenAI()
     # call openai
-    response = client.chat.completions.create(
+    completion = client.chat.completions.create(
         model=model_name,
         messages=new_messages,
         timeout=timeout,
         **generate_kwargs,
     )
-    return response.choices[0].message.content
+    stream = generate_kwargs.get("stream", False)
+    if not stream:
+        if len(completion.choices) > 1:
+            return [c.message.content for c in completion.choices]
+        else:
+            return completion.choices[0].message.content
+    else:
+        def generate_stream():
+            for chunk in completion:
+                if chunk.choices[0].delta.content is not None:
+                    yield chunk.choices[0].delta.content
+        return generate_stream()
 
 def call_worker_openai_completion(prompt:str, model_name, timeout:int=60, **generate_kwargs) -> str:
     # initialize openai client
     client = OpenAI()
     # call openai
-    response = client.completions.create(
+    completion = client.completions.create(
         model=model_name,
         prompt=prompt,
         timeout=timeout,
         **generate_kwargs,
     )
-    return response.choices[0].text
+    stream = generate_kwargs.get("stream", False)
+    if not stream:
+        if len(completion.choices) > 1:
+            return [c.text for c in completion.choices]
+        else:
+            return completion.choices[0].text
+    else:
+        def generate_stream():
+            for chunk in completion:
+                if chunk.choices[0].delta.content is not None:
+                    yield chunk.choices[0].delta.content
+        return generate_stream()
 
 if __name__ == "__main__":
     from icecream import ic

@@ -17,13 +17,17 @@ def call_worker_together(messages, model_name, timeout:int=60, conv_system_msg=N
     for i, message in enumerate(messages):
         new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
     
+    stream = generate_kwargs.get("stream", False)
+    if stream and "n" in generate_kwargs:
+        generate_kwargs.pop("n")
+        
     @with_timeout(timeout)
     def get_response():
         max_retry_for_unbound_local_error = 10
         retry_count = 0
         while True:
             try:
-                response = together_client.chat.completions.create(
+                completion = together_client.chat.completions.create(
                     model=model_name,
                     messages=new_messages,
                     **generate_kwargs,
@@ -36,7 +40,17 @@ def call_worker_together(messages, model_name, timeout:int=60, conv_system_msg=N
                     
                     raise e
                 continue
-        return response.choices[0].message.content
+        if not stream:
+            if len(completion.choices) > 1:
+                return [c.message.content for c in completion.choices]
+            else:
+                return completion.choices[0].message.content
+        else:
+            def generate_stream():
+                for chunk in completion:
+                    if chunk.choices[0].delta.content is not None:
+                        yield chunk.choices[0].delta.content
+            return generate_stream()
     return get_response()
 
 def call_worker_together_completion(prompt:str, model_name, timeout:int=60, **generate_kwargs) -> str:
@@ -48,12 +62,25 @@ def call_worker_together_completion(prompt:str, model_name, timeout:int=60, **ge
     if model_name.startswith("together_"):
         model_name = model_name.replace("together_", "")
     
+    stream = generate_kwargs.get("stream", False)
+    if stream and "n" in generate_kwargs:
+        generate_kwargs.pop("n")
     @with_timeout(timeout)
     def get_response():
-        response = together_client.completions.create(
+        completion = together_client.completions.create(
             model=model_name,
             prompt=prompt,
             **generate_kwargs,
         )
-        return response.choices[0].text
+        if not stream:
+            if len(completion.choices) > 1:
+                return [c.text for c in completion.choices]
+            else:
+                return completion.choices[0].text
+        else:
+            def generate_stream():
+                for chunk in completion:
+                    if chunk.choices[0].delta.content is not None:
+                        yield chunk.choices[0].delta.content
+            return generate_stream()
     return get_response()

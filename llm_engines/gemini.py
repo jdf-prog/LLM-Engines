@@ -36,6 +36,7 @@ def call_worker_gemini(messages:List[str], model_name, timeout:int=60, conv_syst
     for i, message in enumerate(messages):
         new_messages.append({"role": "user" if i % 2 == 0 else "model", "parts": [glm.Part(text=message)]})
     
+    stream = generate_kwargs.pop("stream", False)
     generation_config = genai.GenerationConfig(
         candidate_count=generate_kwargs.get("num_return_sequences", None),
         stop_sequences=generate_kwargs.get("stop", None),
@@ -51,12 +52,15 @@ def call_worker_gemini(messages:List[str], model_name, timeout:int=60, conv_syst
     )
     @with_timeout(timeout)
     def generate_content():
-        return model.generate_content(new_messages, safety_settings=safety_settings, generation_config=generation_config, request_options=request_options)
+        return model.generate_content(new_messages, safety_settings=safety_settings, generation_config=generation_config, request_options=request_options, stream=stream)
     response = generate_content()
-    try:
+    if not stream:
         return response.text
-    except:
-        return None
+    else:
+        def generate_stream():
+            for chunk in response:
+                yield chunk.text
+        return generate_stream()
 
 if __name__ == "__main__":
     from icecream import ic

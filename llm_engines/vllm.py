@@ -167,6 +167,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
             del generate_kwargs[key]
     generate_kwargs["extra_body"] = extra_body_params
     
+    stream = generate_kwargs.get("stream", False)
     @with_timeout(timeout)
     def get_response():
         while True:
@@ -204,8 +205,17 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
                     else:
                         raise e
 
-    
-        return completion.choices[0].message.content
+        if not stream:
+            if len(completion.choices) > 1:
+                return [c.message.content for c in completion.choices]
+            else:
+                return completion.choices[0].message.content
+        else:
+            def generate_stream():
+                for chunk in completion:
+                    if chunk.choices[0].delta.content is not None:
+                        yield chunk.choices[0].delta.content
+            return generate_stream()
     
     return get_response()
     
@@ -227,7 +237,7 @@ def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:in
             del generate_kwargs[key]
     generate_kwargs["extra_body"] = extra_body_params
     
-    
+    stream = generate_kwargs.get("stream", False)
     @with_timeout(timeout)
     def get_response():
         while True:
@@ -245,5 +255,15 @@ def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:in
                 print(f"API connection error: {e}")
                 time.sleep(5)
                 continue
-        return completion.choices[0].text
+        if not stream:
+            if len(completion.choices) > 1:
+                return [c.text for c in completion.choices]
+            else:
+                return completion.choices[0].text
+        else:
+            def generate_stream():
+                for chunk in completion:
+                    if chunk.choices[0].delta.content is not None:
+                        yield chunk.choices[0].delta.content
+            return generate_stream()
     return get_response()
