@@ -96,10 +96,8 @@ def question(s, prompt):
     s += prompt
     s += gen("answer")
 
-
-
 chat_tokenizers = {}
-def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
+def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=300, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     
@@ -132,6 +130,8 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_
     generate_kwargs["extra_body"] = extra_body_params
     
     stream = generate_kwargs.get("stream", False)
+    if stream:
+        generate_kwargs.pop("n", None)
     @with_timeout(timeout)
     def get_response():
         while True:
@@ -163,7 +163,7 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=60, conv_
             return generate_stream()
     return get_response()
 
-def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=60, **generate_kwargs) -> str:
+def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=300, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     if model_name not in chat_tokenizers:
@@ -192,6 +192,8 @@ def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:
     generate_kwargs["extra_body"] = extra_body_params
     
     stream = generate_kwargs.get("stream", False)
+    if stream:
+        generate_kwargs.pop("n", None)
     @with_timeout(timeout)
     def get_response():
         while True:
@@ -219,54 +221,7 @@ def call_sglang_worker_completion(prompt:str, model_name, worker_addrs, timeout:
         else:
             def generate_stream():
                 for chunk in completion:
-                    if chunk.choices[0].delta.content is not None:
-                        yield chunk.choices[0].delta.content
+                    if chunk.choices[0].text is not None:
+                        yield chunk.choices[0].text
             return generate_stream()
     return get_response()
-
-    
-# chat_tokenizers = {}
-# def call_sglang_worker(messages:List[str], model_name, worker_addrs, conv_system_msg=None, **generate_kwargs) -> str:
-#     global worker_initiated
-#     global chat_tokenizers
-    
-#     if model_name not in chat_tokenizers:
-#         chat_tokenizers[model_name] = ChatTokenizer(model_name)
-#     chat_tokenizer = chat_tokenizers[model_name]
-#     prompt = chat_tokenizer(messages)
-#     if not hasattr(call_sglang_worker, "worker_id_to_call"):
-#         call_sglang_worker.worker_id_to_call = 0
-#     call_sglang_worker.worker_id_to_call = (call_sglang_worker.worker_id_to_call + 1) % len(worker_addrs)
-#     worker_addr = worker_addrs[call_sglang_worker.worker_id_to_call]
-#     assert len(messages) % 2 == 1, "The number of messages must be odd, meaning the last message is from the user"
-#     max_retry = 5
-#     retry = 0
-#     while True:
-#         try:
-#             state = question.run(
-#                 prompt=prompt,
-#                 max_new_tokens=min(int(generate_kwargs.get("max_new_tokens", 1024)), 1024),
-#                 temperature=float(generate_kwargs.get("temperature", 0.7)),
-#                 top_p = float(generate_kwargs.get("top_p", 1.0)),
-#                 backend=RuntimeEndpoint(worker_addr)
-#             )
-#             response = state["answer"]
-#             generated_text = response
-#             if response:
-#                 worker_initiated = True
-#             break
-#         except urllib.error.URLError as e:
-#             if not worker_initiated:
-#                 time.sleep(5)
-#                 continue
-#             retry += 1
-#             if retry > max_retry:
-#                 return None
-#             print("Connection error, retrying...")
-#             time.sleep(5)
-#         except Exception as e:
-#             print("Unknown exception: ", e, "retrying...")
-#             raise e
-        
-#     generated_text = generated_text.strip("\n ")
-#     return generated_text

@@ -131,7 +131,7 @@ def launch_vllm_worker(
         chat_tokenizers[base_model_name_or_path] = ChatTokenizer(base_model_name_or_path)
     return f"http://127.0.0.1:{port}", proc
 
-def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
+def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=300, conv_system_msg=None, **generate_kwargs) -> str:
     global worker_initiated
     global chat_tokenizers
     if "max_new_tokens" in generate_kwargs:
@@ -159,6 +159,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
         base_url=f"{worker_addr}/v1",
         # api_key="vllm-engine-token",
     )
+
     args_names, kwargs_names = get_function_arg_names(client.chat.completions.create)
     extra_body_params = {}
     for key in list(generate_kwargs.keys()):
@@ -168,6 +169,10 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
     generate_kwargs["extra_body"] = extra_body_params
     
     stream = generate_kwargs.get("stream", False)
+    if stream:
+        generate_kwargs.pop("n", None)
+    
+    print(generate_kwargs)
     @with_timeout(timeout)
     def get_response():
         while True:
@@ -219,7 +224,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=60, conv_sy
     
     return get_response()
     
-def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=60, **generate_kwargs) -> str:
+def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:int=300, **generate_kwargs) -> str:
     global worker_initiated
     
     worker_addr = random.choice(worker_addrs)
@@ -229,15 +234,18 @@ def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:in
         api_key="vllm-engine-token",
     )
     
+    stream = generate_kwargs.get("stream", False)
+    if stream:
+        generate_kwargs.pop("n", None)
+        
     args_names, kwargs_names = get_function_arg_names(client.completions.create)
     extra_body_params = {}
     for key in list(generate_kwargs.keys()):
         if key not in args_names + kwargs_names:
             extra_body_params[key] = generate_kwargs[key]
             del generate_kwargs[key]
-    generate_kwargs["extra_body"] = extra_body_params
+    # generate_kwargs["extra_body"] = extra_body_params
     
-    stream = generate_kwargs.get("stream", False)
     @with_timeout(timeout)
     def get_response():
         while True:
@@ -263,7 +271,7 @@ def call_vllm_worker_completion(prompt:str, model_name, worker_addrs, timeout:in
         else:
             def generate_stream():
                 for chunk in completion:
-                    if chunk.choices[0].delta.content is not None:
-                        yield chunk.choices[0].delta.content
+                    if chunk.choices[0].text is not None:
+                        yield chunk.choices[0].text
             return generate_stream()
     return get_response()

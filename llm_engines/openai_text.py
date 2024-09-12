@@ -50,8 +50,8 @@ def call_worker_openai_completion(prompt:str, model_name, timeout:int=60, **gene
     else:
         def generate_stream():
             for chunk in completion:
-                if chunk.choices[0].delta.content is not None:
-                    yield chunk.choices[0].delta.content
+                if chunk.choices[0].text is not None:
+                    yield chunk.choices[0].text
         return generate_stream()
 
 if __name__ == "__main__":
