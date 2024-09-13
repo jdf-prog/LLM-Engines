@@ -14,7 +14,7 @@ from tqdm import tqdm
 # Global cache dictionary using LRUCache
 cache_dict = {}
 # Adjust this value based on your memory constraints and requirements
-MAX_CACHE_SIZE = 100000  # Example: 100k items
+MAX_CACHE_SIZE = 500000  # Example: 100k items
 
 class LRUCacheManager:
     def __init__(self, maxsize=MAX_CACHE_SIZE):
