@@ -156,7 +156,7 @@ def _generation_cache_wrapper(inputs: Union[str, List[str]], call_model_worker, 
         "generate_kwargs": generate_kwargs
     }
     
-    cache_dict[inputs_hash] = cache_item
+    # cache_dict[inputs_hash] = cache_item
     
     cache_file = get_cache_file(model_name, cache_dir)
     with open(cache_file, "a+") as f:

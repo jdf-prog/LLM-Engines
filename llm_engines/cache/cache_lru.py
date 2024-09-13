@@ -9,6 +9,7 @@ from typing import List
 from cachetools import LRUCache
 from functools import lru_cache
 from .cache_utils import get_cache_file
+from tqdm import tqdm
 
 # Global cache dictionary using LRUCache
 cache_dict = {}
@@ -43,9 +44,8 @@ def load_cache(model_name, cache_dir=None):
         cache_file = get_cache_file(model_name, cache_dir)
         if cache_file.exists():
             print("Cache file exists at:", cache_file.absolute())
-            print(f"Loading cache from {cache_file}")
             with open(cache_file, "r") as f:
-                for line in f:
+                for line in tqdm(f, desc="Loading cache for model: " + model_name):
                     item = json.loads(line)
                     key = list(item.keys())[0]
                     value = list(item.values())[0]

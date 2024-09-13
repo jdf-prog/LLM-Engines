@@ -13,7 +13,7 @@ from cachetools import LRUCache
 from tqdm import tqdm
 
 BLOCK_SIZE = 3072 * 1024  # 3MB
-MAX_CACHE_SIZE = 10000  # Example: 10k items
+MAX_CACHE_SIZE = 100000  # Example: 10k items
 MAX_MEMORY_BLOCKS = 32 # Example: 32 blocks
 # Global cache dictionary using MultiLevelCache
 cache_dict = {}
@@ -23,7 +23,7 @@ class BlockCache:
         self.cache = LRUCache(maxsize=max_size)
         self.lock = threading.Lock()
 
-    def get(self, block_id):
+    def get(self, block_id): 
         with self.lock:
             return self.cache.get(block_id)
 
