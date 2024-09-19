@@ -240,7 +240,7 @@ def load_cache(model_name, cache_dir=None):
 # Cleanup function to be called at exit
 def cleanup_all_caches():
     global cache_dict
-    print("Cleaning up all caches...")
+    # print("Cleaning up all caches...")
     for model_name, cache in cache_dict.items():
         cache.disk_cache.cleanup()
     cache_dict.clear()
