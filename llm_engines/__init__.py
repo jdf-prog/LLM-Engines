@@ -418,6 +418,6 @@ class LLMEngine:
                     self.workers.remove(worker)
         
     def __del__(self):
-        self.unload_model()
+        pass
         
         

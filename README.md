@@ -115,6 +115,12 @@ response = llm.call_model(model_name, "What is the capital of France?", temperat
 print(response)
 ```
 
+### unload model
+```python
+llm.unload_model(model_name) # unload all the workers named model_name
+llm.unload_model() # unload all the workers
+```
+
 ### Multi-turn conversation
 ```python
 from llm_engines import LLMEngine
