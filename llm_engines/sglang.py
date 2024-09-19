@@ -136,7 +136,6 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=300, conv
     def get_response():
         while True:
             try:
-                print()
                 completion = client.chat.completions.create(
                     model=model_name,
                     messages=chat_messages,

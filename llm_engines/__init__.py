@@ -44,7 +44,7 @@ def get_call_worker_func(
     overwrite_cache=False,
     completion=False, 
     num_workers=1,
-    num_gpu_per_worker=1,
+    num_gpu_per_worker=None,
     gpu_ids=None,
     dtype="auto",
     quantization=None,
@@ -92,6 +92,7 @@ def get_call_worker_func(
         from .together import call_worker_together, call_worker_together_completion
         call_model_worker = call_worker_together if not completion else call_worker_together_completion
     elif engine in ["vllm", "sglang"]:
+        assert num_gpu_per_worker is not None, "num_gpu_per_worker must be provided for vllm and sglang"
         if engine == "vllm":
             from .vllm import launch_vllm_worker, call_vllm_worker, call_vllm_worker_completion
             call_worker_func = call_vllm_worker if not completion else call_vllm_worker_completion
@@ -279,7 +280,7 @@ class LLMEngine:
         overwrite_cache=False,
         completion=False,
         num_workers=1,
-        num_gpu_per_worker=1,
+        num_gpu_per_worker=None,
         dtype="auto",
         quantization=None,
         engine="vllm",
