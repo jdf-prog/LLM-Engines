@@ -367,7 +367,11 @@ class LLMEngine:
         call_model_worker = self.loaded_model_call_func.get(model_name)
         if call_model_worker is None:
             raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
-        return call_model_worker(messages, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+        try:
+            return call_model_worker(messages, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+        except MaxRetriesExceededError as e:
+            print(e)
+            return None
     
     def batch_call_model(
         self,
