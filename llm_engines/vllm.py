@@ -51,7 +51,7 @@ def launch_vllm_worker(
         env["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
     else:
         env["VLLM_ATTENTION_BACKEND"] = "FLASH_ATTN"
-    print(num_gpus, gpu_ids)
+    # print(num_gpus, gpu_ids)
     
     model_path = Path(model_name)
     if model_path.exists() and ((model_path / "config.json").exists() or (model_path / "adapter_config.json").exists()):
@@ -172,7 +172,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=300, conv_s
     if stream:
         generate_kwargs.pop("n", None)
     
-    print(generate_kwargs)
+    # print(generate_kwargs)
     @with_timeout(timeout)
     def get_response():
         while True:
