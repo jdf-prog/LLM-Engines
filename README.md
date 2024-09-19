@@ -116,6 +116,7 @@ print(response)
 ```
 
 ### unload model
+Remember to unload the model after using it to free up the resources. By default, all the workers will be unloaded after the program exits. If you want to use different models in the same program, you can unload the model before loading a new model, if that model needs gpu resources.
 ```python
 llm.unload_model(model_name) # unload all the workers named model_name
 llm.unload_model() # unload all the workers
