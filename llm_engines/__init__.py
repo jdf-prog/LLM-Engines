@@ -238,9 +238,10 @@ def cleanup_all_workers():
 
 
 class LLMEngine:
-    workers = []
-    loaded_model_call_func = {}
+    
     def __init__(self, verbose=False, num_gpus: int = None, gpu_ids: Union[List[int], str] = None):
+        self.workers = []
+        self.loaded_model_call_func = {}
         import torch
         self.verbose = verbose
         total_gpus = torch.cuda.device_count()

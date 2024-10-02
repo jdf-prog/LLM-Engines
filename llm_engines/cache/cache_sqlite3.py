@@ -11,12 +11,14 @@ from pathlib import Path
 from typing import Union, List, Dict
 from cachetools import LRUCache
 from tqdm import tqdm
+from collections import defaultdict
 
 BLOCK_SIZE = 3072 * 1024  # 3MB
 MAX_CACHE_SIZE = 100000  # Example: 10k items
 MAX_MEMORY_BLOCKS = 32 # Example: 32 blocks
 # Global cache dictionary using MultiLevelCache
 cache_dict = {}
+loaded_cache_files = defaultdict(list)
 
 class BlockCache:
     def __init__(self, max_size=MAX_MEMORY_BLOCKS):
@@ -217,6 +219,7 @@ class MultiLevelCache:
 
 def load_cache(model_name, cache_dir=None):
     global cache_dict
+    global loaded_cache_files
     if model_name not in cache_dict:
         if cache_dir is None:
             cache_dir = Path(os.path.expanduser(f"~/llm_engines/generation_cache"))
@@ -227,14 +230,17 @@ def load_cache(model_name, cache_dir=None):
         
         if cache_file.exists():
             print("Cache file exists at:", cache_file.absolute())
-            initial_data = {}
-            with open(cache_file, 'r') as f:
-                for line in tqdm(f, desc="Loading cache for model: " + model_name):
-                    data = json.loads(line)
-                    key = list(data.keys())[0]  
-                    initial_data[key] = data[key]
-            if initial_data:
-                cache_dict[model_name].bulk_insert(initial_data)
+            if model_name not in loaded_cache_files or cache_file.absolute() not in loaded_cache_files[model_name]:
+                initial_data = {}
+                with open(cache_file, 'r') as f:
+                    for line in tqdm(f, desc="Loading cache for model: " + model_name):
+                        data = json.loads(line)
+                        key = list(data.keys())[0]  
+                        initial_data[key] = data[key]
+                if initial_data:
+                    cache_dict[model_name].bulk_insert(initial_data)
+                loaded_cache_files[model_name].append(cache_file.absolute())
+                
     return cache_dict[model_name]
 
 # Cleanup function to be called at exit
