@@ -407,16 +407,22 @@ class LLMEngine:
     
     def __call__(self, *args, **kwds):
         return self.call_model(*args, **kwds)
-    
+                    
     def unload_model(self, model_name=None):
+        to_remove_local_workers = []
+        to_remove_global_workers = []
         for worker in self.workers:
             if model_name is None or worker.model_name == model_name:
                 print(f"Unloading model worker: {worker}")
                 cleanup_process(worker) 
                 if worker in all_workers:
-                    all_workers.remove(worker)
+                    to_remove_global_workers.append(worker)
                 if worker in self.workers:
-                    self.workers.remove(worker)
+                    to_remove_local_workers.append(worker)
+        for worker in to_remove_global_workers:
+            all_workers.remove(worker)
+        for worker in to_remove_local_workers:
+            self.workers.remove(worker)
         
     def __del__(self):
         pass
