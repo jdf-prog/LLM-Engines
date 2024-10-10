@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import random
 import atexit
 import psutil
@@ -242,6 +243,7 @@ class LLMEngine:
     def __init__(self, verbose=False, num_gpus: int = None, gpu_ids: Union[List[int], str] = None):
         self.workers = []
         self.loaded_model_call_func = {}
+        self.loaded_model_engine_map = {}
         import torch
         self.verbose = verbose
         total_gpus = torch.cuda.device_count()
@@ -346,6 +348,7 @@ class LLMEngine:
 
         self.workers.extend(model_workers)
         self.loaded_model_call_func[model_name] = call_model_worker
+        self.loaded_model_engine_map[model_name] = engine
         return call_model_worker
     
     def call_model(
@@ -382,6 +385,7 @@ class LLMEngine:
         conv_system_msg=None,
         num_proc=8,
         desc=None,
+        disable_openai_batch_api=False,
         **generate_kwargs
     ):
         """
@@ -395,14 +399,20 @@ class LLMEngine:
             generate_kwargs: generation arguments
         """
         call_model_worker = self.loaded_model_call_func.get(model_name)
-        if call_model_worker is None:
-            raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
-        from functools import partial
-        from multiprocessing import Pool
-        num_proc = min(num_proc, len(batch_messages))
-        call_model_worker = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
-        with Pool(num_proc) as p:
-            results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
+        engine = self.loaded_model_engine_map.get(model_name)
+        if engine != "openai" or disable_openai_batch_api:
+            if call_model_worker is None:
+                raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
+            from functools import partial
+            from multiprocessing import Pool
+            num_proc = min(num_proc, len(batch_messages))
+            call_model_worker = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+            with Pool(num_proc) as p:
+                results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
+        else:
+            print("Using OpenAI batch API")
+            from .openai_text import openai_batch_request
+            results = openai_batch_request(model_name, batch_messages, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
         return results
     
     def __call__(self, *args, **kwds):

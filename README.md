@@ -178,6 +178,13 @@ Example inference file: [`./examples/batch_inference_wildchat.py`](./examples/ba
 python examples/batch_inference_wildchat.py
 ```
 
+**OpenAI Batch API**
+by using the above code, it will automatically use the batch API for openai models. if you don't want to use the batch API and still want to use the normal API, set `disable_openai_batch_api=True` when loading the model.
+
+By using openai's batch API, you can get half the price of the normal API. The batch API is only available for the models with `max_batch_size > 1`.
+
+LLM-Engines will calculates the hash of the inputs and generation parameters, and will only send new batch requests if the inputs and generation parameters are different from the previous requests. You can check a list of requested batch information in the [`~/llm_engines/generation_cache/openai_batch_cache/batch_submission_status.json`](~/llm_engines/generation_cache/openai_batch_cache/batch_submission_status.json) file.
+
 ### Parallel infernece throught huggingface dataset map
 Check out [`./examples/mp_inference_wildchat.py`](./examples/mp_inference_wildchat.py) for parallel inference with multiple models.
 ```bash

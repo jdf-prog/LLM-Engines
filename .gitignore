@@ -164,3 +164,4 @@ cython_debug/
 /llm_engines/generation_cache
 /test*
 .vscode
+/llm_engines/*.json
