@@ -1,5 +1,7 @@
 # LLM-Engines
 
+[Author: Dongfu Jiang](https://jdf-prog.github.io/), [Twitter](https://x.com/DongfuJiang/status/1833730295696334925), [PyPI Package](https://pypi.org/project/llm-engines/)
+
 A unified inference engine for large language models (LLMs) including open-source models (VLLM, SGLang, Together) and commercial models (OpenAI, Mistral, Claude).
 
 The correctness of the inference has been verified by comparing the outputs of the models with different engines when `temperature=0.0` and `max_tokens=None`.
@@ -11,7 +13,6 @@ Try examples below to see the outputs of different engines.
 ```bash
 pip install llm-engines # or
 # pip install git+https://github.com/jdf-prog/LLM-Engines.git
-
 ```
 For development:
 ```bash
