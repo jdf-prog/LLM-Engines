@@ -180,7 +180,7 @@ python examples/batch_inference_wildchat.py
 ```
 
 **OpenAI Batch API**
-by using the above code, it will automatically use the batch API for openai models. if you don't want to use the batch API and still want to use the normal API, set `disable_openai_batch_api=True` when loading the model.
+by using the above code, it will automatically use the batch API for openai models. if you don't want to use the batch API and still want to use the normal API, set `disable_openai_batch_api=True` when loading the model. `num_proc` will be ignored when using the batch API.
 
 By using openai's batch API, you can get half the price of the normal API. The batch API is only available for the models with `max_batch_size > 1`.
 
