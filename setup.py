@@ -34,7 +34,7 @@ setup(
         "prettytable",
         "sglang[all]",
         "mistralai",
-        "anthropic",
+        "anthropic>=0.36.0",
         "fastapi<=0.112.2"
     ],
     extras_require={

@@ -9,6 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 batch_submission_status_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache")) / "openai_batch_cache" / "batch_submission_status.json"
+batch_submission_status_file.parent.mkdir(parents=True, exist_ok=True)
 # no image, multi-turn, do not use openai_generate, but can refer to it
 def call_worker_openai(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to openai format
@@ -103,8 +104,11 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
     # internally maintain a batch submission status json
     print("Loading batch submission status from", batch_submission_status_file)
     if batch_submission_status_file.exists():
-        with open(batch_submission_status_file, "r") as f:
-            batch_submission_status = json.load(f)
+        try:
+            with open(batch_submission_status_file, "r") as f:
+                batch_submission_status = json.load(f)
+        except:
+            batch_submission_status = {}
     else:
         batch_submission_status = {}
         
@@ -213,7 +217,7 @@ def check_batch_status(batch_result_id, overwrite:bool=False):
             if output_path.exists() and overwrite:
                 print(f"Overwriting file {output_path}")
             content.write_to_file(output_path)
-            print(f"Output file written to {batch_desc}.jsonl")
+            print(f"Output file written to {output_path}")
         batch_submission_status[batch_id]["status"] = "completed"
         batch_submission_status[batch_id]["timeline"]["completed"] = str(datetime.now())
         batch_submission_status[batch_id]["timeline"]["downloaded"] = str(datetime.now())

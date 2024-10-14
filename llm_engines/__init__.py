@@ -398,9 +398,10 @@ class LLMEngine:
             num_proc: number of processes
             generate_kwargs: generation arguments
         """
+        supported_batch_api_engines = ["openai", "claude"]
         call_model_worker = self.loaded_model_call_func.get(model_name)
         engine = self.loaded_model_engine_map.get(model_name)
-        if engine != "openai" or disable_openai_batch_api:
+        if engine not in supported_batch_api_engines or disable_openai_batch_api:
             if call_model_worker is None:
                 raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
             from functools import partial
@@ -410,9 +411,17 @@ class LLMEngine:
             with Pool(num_proc) as p:
                 results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
         else:
-            print("Using OpenAI batch API")
-            from .openai_text import openai_batch_request
-            results = openai_batch_request(model_name, batch_messages, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
+            if engine == "openai":
+                print("Using OpenAI batch API")
+                from .openai_text import openai_batch_request
+                results = openai_batch_request(model_name, batch_messages, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
+            elif engine == "claude":
+                print("Using Claude batch API")
+                from .claude import claude_batch_request
+                results = claude_batch_request(model_name, batch_messages, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
+            else:
+                raise ValueError(f"Engine {engine} not supported for batch API")
+                
         return results
     
     def __call__(self, *args, **kwds):
