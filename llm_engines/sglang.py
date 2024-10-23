@@ -7,7 +7,6 @@ import importlib.util
 from pathlib import Path
 from typing import List
 from sglang import function, system, user, assistant, gen
-from sglang.srt.utils import allocate_init_ports
 from .utils import SubprocessMonitor, ChatTokenizer, with_timeout, get_function_arg_names
 worker_initiated = False
 sglang_workers = {}
