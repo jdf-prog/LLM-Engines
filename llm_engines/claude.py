@@ -110,8 +110,6 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
     client = anthropic.Anthropic()
     with open(batch_file, "r") as f:
         batch_inputs = [json.loads(line) for line in f.readlines()]
-    print(batch_inputs[0])
-    exit(1)
     if not project_name:
         project_name = "llm_engines"
     description = description if description is not None else batch_file.stem
@@ -198,8 +196,6 @@ def check_batch_status(batch_result_id, overwrite:bool=False):
         if isinstance(claude_batch_metadata[key], datetime):
             claude_batch_metadata[key] = str(claude_batch_metadata[key])
     if batch_status == "ended":
-        print(f"Downloading output file for batch {batch_id}")
-        results_url = batch.results_url
         output_path = batch_output_path
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,14 +204,18 @@ def check_batch_status(batch_result_id, overwrite:bool=False):
         else:
             if output_path.exists() and overwrite:
                 print(f"Overwriting file {output_path}")
+                
+            # retrieve the results
+            print(f"Downloading output file for batch {batch_id}")
+            results = client.beta.messages.batches.results(batch_id)
             # save url to file via web requests, download the results_url file, and save to output_path
             with open(output_path, "wb") as f:
-                f.write(requests.get(results_url).content)
+                for result in results:
+                    f.write(json.dumps(result.to_dict(), ensure_ascii=False).encode() + b"\n")
             print(f"Output file written to {output_path}")
         with open(output_path, "r") as f:
             results = [json.loads(line) for line in f.readlines()]
-        print(results)
-        all_result_types = [x['type'] for x in results]
+        all_result_types = [x['result']['type'] for x in results]
         if all(all_result_types) == "errored" or all(all_result_types) == "error":
             batch_status = "errored"
             batch_submission_status[batch_id]["status"] = "errored"
