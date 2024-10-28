@@ -385,7 +385,7 @@ class LLMEngine:
         conv_system_msg=None,
         num_proc=8,
         desc=None,
-        disable_openai_batch_api=False,
+        disable_batch_api=False,
         **generate_kwargs
     ):
         """
@@ -401,7 +401,7 @@ class LLMEngine:
         supported_batch_api_engines = ["openai", "claude"]
         call_model_worker = self.loaded_model_call_func.get(model_name)
         engine = self.loaded_model_engine_map.get(model_name)
-        if engine not in supported_batch_api_engines or disable_openai_batch_api:
+        if engine not in supported_batch_api_engines or disable_batch_api:
             if call_model_worker is None:
                 raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
             from functools import partial
