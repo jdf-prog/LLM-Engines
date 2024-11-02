@@ -19,7 +19,7 @@ from .cache import load_cache, get_inputs_hash, get_cache_file
 
 default_gen_params = {
     "temperature": 0.0,
-    # "max_tokens": None,
+    "max_tokens": None,
     "top_p": 1.0,
     "timeout": 600,
 }
