@@ -20,6 +20,14 @@ def call_worker_openai(messages:List[str], model_name, timeout:int=60, conv_syst
         new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
     # initialize openai client
     client = OpenAI()
+    if "o1" in model_name:
+        # fixed parameters for openai o1 models
+        generate_kwargs.pop("max_tokens", None)
+        generate_kwargs['temperature'] = 1
+        generate_kwargs['top_p'] = 1
+        generate_kwargs['n'] = 1
+        generate_kwargs['frequency_penalty'] = 0
+        generate_kwargs['presence_penalty'] = 0
     # call openai
     completion = client.chat.completions.create(
         model=model_name,
