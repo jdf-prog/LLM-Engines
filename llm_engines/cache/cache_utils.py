@@ -17,6 +17,18 @@ def get_cache_file(model_name_or_path, cache_dir):
         cache_file.parent.mkdir(parents=True)
     return cache_file
 
+@lru_cache(maxsize=None)
+def get_batch_cache_dir(model_name_or_path, cache_dir):
+    model_name = model_name_or_path.split("/")[-2:]
+    model_name = "/".join(model_name)
+    if cache_dir is not None:
+        batch_cache_dir = Path(cache_dir) / f"{model_name}_batch_cache"
+    else:
+        batch_cache_dir = Path(os.path.expanduser(f"~/llm_engines/generation_cache/{model_name}_batch_cache"))
+    if not batch_cache_dir.exists():
+        batch_cache_dir.mkdir(parents=True)
+    return batch_cache_dir
+
 
 def get_inputs_hash(inputs, conv_system_msg):
     if isinstance(inputs, str):

@@ -1,12 +1,14 @@
 import os
 import sys
-import time
+import json
 import random
 import atexit
 import psutil
+import hashlib
 import subprocess
 from functools import partial
 from .utils import generation_cache_wrapper, retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError
+from cache.cache_utils import get_batch_cache_dir
 from typing import Union, List
 from tqdm import tqdm
 
@@ -404,12 +406,34 @@ class LLMEngine:
         if engine not in supported_batch_api_engines or disable_batch_api:
             if call_model_worker is None:
                 raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
-            from functools import partial
-            from multiprocessing import Pool
-            num_proc = min(num_proc, len(batch_messages))
-            call_model_worker = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
-            with Pool(num_proc) as p:
-                results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
+            
+            batch_cache_dir = get_batch_cache_dir(model_name, None)
+            to_write_batch_messages = [
+                {"input": message, "generation_kwargs": generate_kwargs} for message in batch_messages
+            ]
+            hash_str = hashlib.md5("".join([
+                str(x) for x in to_write_batch_messages
+            ]).encode()).hexdigest()
+            hash_result_file = batch_cache_dir / f"{hash_str}_batch_results.jsonl"
+            if hash_result_file.exists():
+                results = []
+                with open(hash_result_file, "r") as f:
+                    for line in f:
+                        message = json.loads(line)
+                        results.append(message["output"])
+            else:
+                from functools import partial
+                from multiprocessing import Pool
+                num_proc = min(num_proc, len(batch_messages))
+                call_model_worker = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+                with Pool(num_proc) as p:
+                    results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
+                if results:
+                    for i, message in enumerate(to_write_batch_messages):
+                        message["output"] = results[i]
+                    with open(batch_cache_dir / f"{hash_str}_batch_results.jsonl", "w") as f:
+                        for message in to_write_batch_messages:
+                            f.write(json.dumps(message) + "\n")
         else:
             if engine == "openai":
                 print("Using OpenAI batch API")
