@@ -8,7 +8,7 @@ import hashlib
 import subprocess
 from functools import partial
 from .utils import generation_cache_wrapper, retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError
-from cache.cache_utils import get_batch_cache_dir
+from .cache.cache_utils import get_batch_cache_dir
 from typing import Union, List
 from tqdm import tqdm
 

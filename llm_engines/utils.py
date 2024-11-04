@@ -139,7 +139,10 @@ def _generation_cache_wrapper(inputs: Union[str, List[str]], call_model_worker, 
     cache_dict = load_cache(model_name, cache_dir)
     
     conv_system_msg = generate_kwargs.get("conv_system_msg", "")
-    inputs_hash = get_inputs_hash(inputs, conv_system_msg)
+    if "n" in generate_kwargs:
+        inputs_hash = get_inputs_hash(inputs, conv_system_msg, generate_kwargs)
+    else:
+        inputs_hash = get_inputs_hash(inputs, conv_system_msg)
     
     if not overwrite_cache:
         cached_value = cache_dict[inputs_hash]

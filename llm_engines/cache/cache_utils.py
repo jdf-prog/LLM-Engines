@@ -30,9 +30,18 @@ def get_batch_cache_dir(model_name_or_path, cache_dir):
     return batch_cache_dir
 
 
-def get_inputs_hash(inputs, conv_system_msg):
+def get_inputs_hash(inputs, conv_system_msg, generate_kwargs=None):
+    
+    inputs = inputs.copy()
     if isinstance(inputs, str):
-        return hashlib.md5(inputs.encode()).hexdigest()
+        inputs = [inputs]
+    
     if conv_system_msg:
-        return hashlib.md5((conv_system_msg + "".join(inputs)).encode()).hexdigest()
-    return hashlib.md5("".join(inputs).encode()).hexdigest()
+        to_hash_inputs = [conv_system_msg] + inputs
+    else:
+        to_hash_inputs = inputs
+    
+    if generate_kwargs:
+        to_hash_inputs.append(str(generate_kwargs))
+        
+    return hashlib.md5("".join(to_hash_inputs).encode()).hexdigest()
