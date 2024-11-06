@@ -388,6 +388,7 @@ class LLMEngine:
         num_proc=8,
         desc=None,
         disable_batch_api=False,
+        max_batch_size=None,
         **generate_kwargs
     ):
         """
@@ -438,14 +439,21 @@ class LLMEngine:
             if engine == "openai":
                 print("Using OpenAI batch API")
                 from .openai_text import openai_batch_request
-                results = openai_batch_request(model_name, batch_messages, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
+                batch_request_func = openai_batch_request
             elif engine == "claude":
                 print("Using Claude batch API")
                 from .claude import claude_batch_request
-                results = claude_batch_request(model_name, batch_messages, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
+                batch_request_func = claude_batch_request
             else:
                 raise ValueError(f"Engine {engine} not supported for batch API")
-                
+            if max_batch_size is None:
+                results = batch_request_func(model_name, batch_messages, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
+            else:
+                results = []
+                for i in tqdm(range(0, len(batch_messages), max_batch_size), desc=desc or "LLMEngine Batch Inference"):
+                    _results = batch_request_func(model_name, batch_messages[i:i+max_batch_size], conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
+                    results.extend(_results)
+                    
         return results
     
     def __call__(self, *args, **kwds):
