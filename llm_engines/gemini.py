@@ -50,6 +50,8 @@ def call_worker_gemini(messages:List[str], model_name, timeout:int=60, conv_syst
     request_options = genai.types.RequestOptions(
         timeout=timeout,
     )
+    if "logprobs" in generate_kwargs:
+        raise ValueError("logprobs is not supported in gemini")
     @with_timeout(timeout)
     def generate_content():
         return model.generate_content(new_messages, safety_settings=safety_settings, generation_config=generation_config, request_options=request_options, stream=stream)

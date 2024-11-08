@@ -36,11 +36,21 @@ def call_worker_openai(messages:List[str], model_name, timeout:int=60, conv_syst
         **generate_kwargs,
     )
     stream = generate_kwargs.get("stream", False)
+    
+    if "logprobs" in generate_kwargs:
+        return_logprobs = True
+    
     if not stream:
-        if len(completion.choices) > 1:
-            return [c.message.content for c in completion.choices]
+        if "logprobs" not in generate_kwargs:
+            if len(completion.choices) > 1:
+                return [c.message.content for c in completion.choices]
+            else:
+                return completion.choices[0].message.content
         else:
-            return completion.choices[0].message.content
+            if len(completion.choices) > 1:
+                return [c.message.content for c in completion.choices], [c.logprobs.dict() for c in completion.choices]
+            else:
+                return completion.choices[0].message.content, completion.choices[0].logprobs.dict()
     else:
         def generate_stream():
             for chunk in completion:
@@ -146,8 +156,11 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
         if batch_file_hash != value_input_file_metadata["hash"]:
             # print(f"Batch {key} has a different input hash. need to resubmit.")
             continue
-        print(f"Batch {key} already submitted. Skipping submission.")
-        return key
+        if value['status'] in ["validating", "in_progress", "finalizing", "completed"]:
+            print(f"Batch {key} is still in progress. Skipping submission.")
+            return key
+        else:
+            continue
         
     completion_window = "24h"
     endpoint = "/v1/chat/completions"
@@ -320,7 +333,10 @@ def openai_batch_request(
         results = []
         with open(output_path, "r") as f:
             results = [json.loads(line) for line in f.readlines()]
-        all_completions = [[choice['message']['content'] for choice in x['response']['body']['choices']] for x in results]
+        if "logprobs" not in generate_kwargs:
+            all_completions = [[choice['message']['content'] for choice in x['response']['body']['choices']] for x in results]
+        else:
+            all_completions = [[(choice['message']['content'], choice['logprobs']) for choice in x['response']['body']['choices']] for x in results]
         if all(len(x) == 1 for x in all_completions):
             all_completions = [x[0] for x in all_completions]
         results = all_completions

@@ -25,6 +25,8 @@ def call_worker_claude(messages:List[str], model_name, timeout:int=60, conv_syst
     if not generate_kwargs.get("max_tokens", None):
         generate_kwargs["max_tokens"] = 1024
     stream = generate_kwargs.pop("stream", False)
+    if "logprobs" in generate_kwargs:
+        raise ValueError("Error: logprobs is not supported in claude")
     @with_timeout(timeout)
     def get_response():
         completion = client.messages.create(
@@ -129,7 +131,9 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
         if batch_file_hash != value_input_file_metadata["hash"]:
             # print(f"Batch {key} has a different input hash. need to resubmit.")
             continue
-        print(f"Batch {key} already submitted. Skipping submission.")
+        if value['status'] in ["errored", "expired", "canceled"]:
+            continue
+        print(f"Batch {key} is still in progress. Skipping submission.")
         return key
     
     

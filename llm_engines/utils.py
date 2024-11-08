@@ -147,12 +147,21 @@ def _generation_cache_wrapper(inputs: Union[str, List[str]], call_model_worker, 
     if not overwrite_cache:
         cached_value = cache_dict[inputs_hash]
         if cached_value:
-            return cached_value["output"]
+            if "logprobs" not in generate_kwargs:
+                return cached_value["output"]
+            elif "logprobs" in cached_value:
+                return cached_value["output"], cached_value["logprobs"]
     
-    generated_text = call_model_worker(inputs, **generate_kwargs)
+    response = call_model_worker(inputs, **generate_kwargs)
+    if isinstance(response, tuple):
+        generated_text, logprobs = response
+    else:
+        generated_text = response
+        logprobs = None
     cache_item = {
         "input": inputs,
         "output": generated_text,
+        "logprobs": logprobs,
         "model_name": model_name,
         'tstamp': time.time(),
         "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
@@ -165,7 +174,7 @@ def _generation_cache_wrapper(inputs: Union[str, List[str]], call_model_worker, 
     with open(cache_file, "a+") as f:
         f.write(json.dumps({inputs_hash: cache_item}) + "\n")
     
-    return generated_text
+    return response
 
 def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, overwrite_cache=False):
     print(f"Using efficient multi-level cache for model {model_name}")

@@ -149,10 +149,16 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=300, conv
                 time.sleep(5)
                 continue
         if not stream:
-            if len(completion.choices) > 1:
-                return [c.message.content for c in completion.choices]
+            if "logprobs" not in generate_kwargs:
+                if len(completion.choices) > 1:
+                    return [c.message.content for c in completion.choices]
+                else:
+                    return completion.choices[0].message.content
             else:
-                return completion.choices[0].message.content
+                if len(completion.choices) > 1:
+                    return [c.message.content for c in completion.choices], [c.logprobs.dict() for c in completion.choices]
+                else:
+                    return completion.choices[0].message.content, completion.choices[0].logprobs.dict()
         else:
             def generate_stream():
                 for chunk in completion:

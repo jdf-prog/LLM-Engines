@@ -15,6 +15,8 @@ def call_worker_mistral(messages:List[str], model_name, timeout:int=120, conv_sy
 
     if "n" in generate_kwargs:
         generate_kwargs.pop("n") # mistral does not have n
+    if "logprobs" in generate_kwargs:
+        raise ValueError("logprobs is not supported in mistral")
     stream = generate_kwargs.pop("stream", False)
     @with_timeout(timeout)
     def generate_content():
