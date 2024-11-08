@@ -242,6 +242,7 @@ There will be errors if the model does not support the chat template.
 - `n`: Number of completions to generate for each prompt. (**only vllm, sglang, openai have this feature**) (default: 1)
 - `stream`: Whether to stream the response or not. If True, `n` will be ignored. (default: False)
 - `conv_system_msg`: The system message for multi-turn conversation; If the meessage contains a system message, this parameter will be overwritten (default: None)
+- `logprobs`: Whether to return the log probabilities of the generated tokens, True/False/None (default: None)
 - all the other parameters that are supported by different engines.
     - for openai and sglang, check out [openai](https://platform.openai.com/docs/api-reference/chat)
     - for extra paramters of vllm, check out [vllm](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html#extra-parameters)
