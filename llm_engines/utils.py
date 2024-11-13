@@ -140,7 +140,8 @@ def _generation_cache_wrapper(inputs: Union[str, List[str]], call_model_worker, 
     
     conv_system_msg = generate_kwargs.get("conv_system_msg", "")
     if "n" in generate_kwargs:
-        inputs_hash = get_inputs_hash(inputs, conv_system_msg, generate_kwargs)
+        non_hash_keys = ["timeout", "stream"]
+        inputs_hash = get_inputs_hash(inputs, conv_system_msg, {k: v for k, v in generate_kwargs.items() if k not in non_hash_keys})
     else:
         inputs_hash = get_inputs_hash(inputs, conv_system_msg)
     
