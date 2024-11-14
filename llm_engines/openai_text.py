@@ -206,54 +206,67 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
         json.dump(batch_submission_status, f, indent=4)
     return batch_result.id
 
-def check_batch_status(batch_result_id, overwrite:bool=False):
+def check_batch_status(batch_id, overwrite:bool=False):
      # internally maintain a batch submission status json
     if batch_submission_status_file.exists():
         with open(batch_submission_status_file, "r") as f:
             batch_submission_status = json.load(f)
     else:
         batch_submission_status = {}
-    
-    client = OpenAI()
-    batch = client.batches.retrieve(batch_result_id)
-    batch_id = batch.id
-    batch_status = batch.status
-    batch_desc = batch.metadata["description"] if batch.metadata is not None and "description" in batch.metadata else ""
-    batch_project_name = batch.metadata["project"] if batch.metadata is not None and "project" in batch.metadata else ""
-    if batch.metadata is not None and "output_path" in batch.metadata:
-        batch_output_path = batch.metadata["output_path"]
+    if batch_id in batch_submission_status:
+        batch_status = batch_submission_status[batch_id]["status"]
     else:
-        batch_output_path = f"./batch_results/{batch_id}.batch_results.jsonl"
-        batch_submission_status[batch_id]["output_path"] = batch_output_path
-    # print(f"{batch_id: <20} {batch_status: <20} {batch_project_name: <20} {batch_desc: <20}")
+        batch_status = None
     if batch_status == "completed":
-        print(f"Downloading output file for batch {batch_id}")
-        content = client.files.content(batch.output_file_id)
-        output_path = batch_output_path
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path = Path(batch_submission_status[batch_id]["output_path"])
         if output_path.exists() and not overwrite:
             print(f"File {output_path} already exists. Skipping writing to file.")
         else:
+            print(f"Downloading output file for batch {batch_id}")
+            client = OpenAI()
+            batch = client.batches.retrieve(batch_id)
+            batch_id = batch.id
+            batch_status = batch.status
+            if batch.metadata is not None and "output_path" in batch.metadata:
+                batch_output_path = batch.metadata["output_path"]
+            else:
+                batch_output_path = f"./batch_results/{batch_id}.batch_results.jsonl"
+                batch_submission_status[batch_id]["output_path"] = batch_output_path
+            content = client.files.content(batch.output_file_id)
+            output_path = batch_output_path
+            output_path = Path(output_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             if output_path.exists() and overwrite:
                 print(f"Overwriting file {output_path}")
             content.write_to_file(output_path)
             print(f"Output file written to {output_path}")
-        batch_submission_status[batch_id]["status"] = "completed"
-        batch_submission_status[batch_id]["timeline"]["completed"] = str(datetime.now())
-        batch_submission_status[batch_id]["timeline"]["downloaded"] = str(datetime.now())
-        batch_submission_status[batch_id]["last_updated"] = str(datetime.now())
-        batch_submission_status[batch_id]["openai_batch_metadata"].update(batch.to_dict())
-    elif batch_status == "failed":
-        print(f"Batch {batch_id} failed.")
-        batch_submission_status[batch_id]["status"] = "failed"
-        batch_submission_status[batch_id]["timeline"]["failed"] = str(datetime.now())
-        batch_submission_status[batch_id]["last_updated"] = str(datetime.now())
-        batch_submission_status[batch_id]["openai_batch_metadata"].update(batch.to_dict())
+            batch_submission_status[batch_id]["status"] = "completed"
+            batch_submission_status[batch_id]["timeline"]["completed"] = str(datetime.now())
+            batch_submission_status[batch_id]["timeline"]["downloaded"] = str(datetime.now())
+            batch_submission_status[batch_id]["openai_batch_metadata"].update(batch.to_dict())
     else:
-        batch_submission_status[batch_id]["status"] = batch_status
-        batch_submission_status[batch_id]["last_updated"] = str(datetime.now())
-        batch_submission_status[batch_id]["openai_batch_metadata"].update(batch.to_dict())
+        client = OpenAI()
+        batch = client.batches.retrieve(batch_id)
+        batch_id = batch.id
+        batch_status = batch.status
+        batch_desc = batch.metadata["description"] if batch.metadata is not None and "description" in batch.metadata else ""
+        batch_project_name = batch.metadata["project"] if batch.metadata is not None and "project" in batch.metadata else ""
+        if batch.metadata is not None and "output_path" in batch.metadata:
+            batch_output_path = batch.metadata["output_path"]
+        else:
+            batch_output_path = f"./batch_results/{batch_id}.batch_results.jsonl"
+            batch_submission_status[batch_id]["output_path"] = batch_output_path
+        # print(f"{batch_id: <20} {batch_status: <20} {batch_project_name: <20} {batch_desc: <20}")
+        if batch_status == "failed":
+            print(f"Batch {batch_id} failed.")
+            batch_submission_status[batch_id]["status"] = "failed"
+            batch_submission_status[batch_id]["timeline"]["failed"] = str(datetime.now())
+            batch_submission_status[batch_id]["openai_batch_metadata"].update(batch.to_dict())
+        else:
+            batch_submission_status[batch_id]["status"] = batch_status
+            batch_submission_status[batch_id]["openai_batch_metadata"].update(batch.to_dict())
+            
+    batch_submission_status[batch_id]["last_updated"] = str(datetime.now())
     with open(batch_submission_status_file, "w") as f:
         json.dump(batch_submission_status, f, indent=4)
     return batch_submission_status[batch_id]
