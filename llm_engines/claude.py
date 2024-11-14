@@ -4,6 +4,7 @@ import requests
 import json
 import hashlib
 import time
+import filelock
 from typing import List, Union
 from anthropic import NOT_GIVEN
 from datetime import datetime
@@ -13,6 +14,35 @@ from .utils import with_timeout
 batch_submission_status_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache")) / "claude_batch_cache" / "batch_submission_status.json"
 batch_submission_status_file.parent.mkdir(parents=True, exist_ok=True)
 
+
+def read_batch_submission_status():
+    print("Loading batch submission status from", batch_submission_status_file)
+    if batch_submission_status_file.exists():
+        
+        lock = filelock.FileLock(str(batch_submission_status_file) + ".lock", timeout=30)
+        try:
+            with lock:
+                with open(batch_submission_status_file, "r") as f:
+                    batch_submission_status = json.load(f)
+        except filelock.Timeout as e:
+            print("Timeout acquiring lock")
+            raise e
+    else:
+        batch_submission_status = {}
+    return batch_submission_status
+
+def write_batch_submission_status(batch_submission_status):
+    batch_submission_status_file.parent.mkdir(parents=True, exist_ok=True)
+    lock = filelock.FileLock(str(batch_submission_status_file) + ".lock", timeout=30)
+    try:
+        with lock:
+            with open(batch_submission_status_file, "w") as f:
+                json.dump(batch_submission_status, f, indent=4)
+    except filelock.Timeout as e:
+        print("Timeout acquiring lock")
+        raise e
+            
+            
 # no image, multi-turn, do not use openai_generate, but can refer to it
 def call_worker_claude(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to mistral format
@@ -98,15 +128,7 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
         batch_file = Path(batch_file)
         
     # internally maintain a batch submission status json
-    print("Loading batch submission status from", batch_submission_status_file)
-    if batch_submission_status_file.exists():
-        try:
-            with open(batch_submission_status_file, "r") as f:
-                batch_submission_status = json.load(f)
-        except:
-            batch_submission_status = {}
-    else:
-        batch_submission_status = {}
+    batch_submission_status = read_batch_submission_status()
         
     
     client = anthropic.Anthropic()
@@ -171,17 +193,12 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
         "last_updated": str(datetime.now()),
         "claude_batch_metadata": claude_batch_metadata
     }
-    with open(batch_submission_status_file, "w") as f:
-        json.dump(batch_submission_status, f, indent=4)
+    
+    write_batch_submission_status(batch_submission_status)
     return batch_result.id
 
 def check_batch_status(batch_result_id, overwrite:bool=False):
-     # internally maintain a batch submission status json
-    if batch_submission_status_file.exists():
-        with open(batch_submission_status_file, "r") as f:
-            batch_submission_status = json.load(f)
-    else:
-        batch_submission_status = {}
+    batch_submission_status = read_batch_submission_status()
     
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     batch = client.beta.messages.batches.retrieve(batch_result_id)
@@ -242,8 +259,7 @@ def check_batch_status(batch_result_id, overwrite:bool=False):
         batch_submission_status[batch_id]["status"] = batch_status
         batch_submission_status[batch_id]["last_updated"] = str(datetime.now())
         batch_submission_status[batch_id]["claude_batch_metadata"].update(claude_batch_metadata)
-    with open(batch_submission_status_file, "w") as f:
-        json.dump(batch_submission_status, f, indent=4)
+    write_batch_submission_status(batch_submission_status)
     return batch_submission_status[batch_id]
 
 def claude_batch_request(

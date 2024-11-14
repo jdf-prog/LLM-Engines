@@ -2,14 +2,45 @@ import os
 import json
 import hashlib
 import time
+import filelock
 from datetime import datetime
 from openai import OpenAI
 from typing import List, Union
 from pathlib import Path
 from tqdm import tqdm
 
+
 batch_submission_status_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache")) / "openai_batch_cache" / "batch_submission_status.json"
 batch_submission_status_file.parent.mkdir(parents=True, exist_ok=True)
+
+def read_batch_submission_status():
+    print("Loading batch submission status from", batch_submission_status_file)
+    if batch_submission_status_file.exists():
+        
+        lock = filelock.FileLock(str(batch_submission_status_file) + ".lock", timeout=30)
+        try:
+            with lock:
+                with open(batch_submission_status_file, "r") as f:
+                    batch_submission_status = json.load(f)
+        except filelock.Timeout as e:
+            print("Timeout acquiring lock")
+            raise e
+    else:
+        batch_submission_status = {}
+    return batch_submission_status
+
+def write_batch_submission_status(batch_submission_status):
+    batch_submission_status_file.parent.mkdir(parents=True, exist_ok=True)
+    lock = filelock.FileLock(str(batch_submission_status_file) + ".lock", timeout=30)
+    try:
+        with lock:
+            with open(batch_submission_status_file, "w") as f:
+                json.dump(batch_submission_status, f, indent=4)
+    except filelock.Timeout as e:
+        print("Timeout acquiring lock")
+        raise e
+            
+        
 # no image, multi-turn, do not use openai_generate, but can refer to it
 def call_worker_openai(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to openai format
@@ -120,16 +151,7 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
         batch_file = Path(batch_file)
         
     # internally maintain a batch submission status json
-    print("Loading batch submission status from", batch_submission_status_file)
-    if batch_submission_status_file.exists():
-        try:
-            with open(batch_submission_status_file, "r") as f:
-                batch_submission_status = json.load(f)
-        except:
-            batch_submission_status = {}
-    else:
-        batch_submission_status = {}
-        
+    batch_submission_status = read_batch_submission_status()
     
     client = OpenAI()
     batch_input_file = client.files.create(
@@ -202,17 +224,13 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
         "last_updated": str(datetime.now()),
         "openai_batch_metadata": batch_result.to_dict()
     }
-    with open(batch_submission_status_file, "w") as f:
-        json.dump(batch_submission_status, f, indent=4)
+    
+    write_batch_submission_status(batch_submission_status)
     return batch_result.id
 
 def check_batch_status(batch_id, overwrite:bool=False):
-     # internally maintain a batch submission status json
-    if batch_submission_status_file.exists():
-        with open(batch_submission_status_file, "r") as f:
-            batch_submission_status = json.load(f)
-    else:
-        batch_submission_status = {}
+    # internally maintain a batch submission status json
+    batch_submission_status = read_batch_submission_status()
     if batch_id in batch_submission_status:
         batch_status = batch_submission_status[batch_id]["status"]
     else:
@@ -267,8 +285,7 @@ def check_batch_status(batch_id, overwrite:bool=False):
             batch_submission_status[batch_id]["openai_batch_metadata"].update(batch.to_dict())
             
     batch_submission_status[batch_id]["last_updated"] = str(datetime.now())
-    with open(batch_submission_status_file, "w") as f:
-        json.dump(batch_submission_status, f, indent=4)
+    write_batch_submission_status(batch_submission_status)
     return batch_submission_status[batch_id]
 
 def openai_batch_request(
