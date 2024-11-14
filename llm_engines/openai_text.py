@@ -217,6 +217,7 @@ def check_batch_status(batch_id, overwrite:bool=False):
         batch_status = batch_submission_status[batch_id]["status"]
     else:
         batch_status = None
+    print(batch_submission_status[batch_id])
     if batch_status == "completed":
         output_path = Path(batch_submission_status[batch_id]["output_path"])
         if output_path.exists() and not overwrite:
@@ -343,6 +344,16 @@ def openai_batch_request(
         
     if batch_status["status"] == "completed":
         output_path = batch_status["output_path"]
+        
+        if not os.path.exists(output_path):
+            client = OpenAI()
+            batch = client.batches.retrieve(batch_result_id)
+            content = client.files.content(batch.output_file_id)
+            output_path = Path(output_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"Downloading output file for batch {batch_result_id}")
+            content.write_to_file(output_path)
+            
         results = []
         with open(output_path, "r") as f:
             results = [json.loads(line) for line in f.readlines()]

@@ -449,10 +449,19 @@ class LLMEngine:
             if max_batch_size is None:
                 results = batch_request_func(model_name, batch_messages, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
             else:
+                # using multiprocess to submit batch request per batch
+                from functools import partial
+                from multiprocessing import Pool
+                
+                _batch_request_func = partial(batch_request_func, model_name, conv_system_msg=conv_system_msg, **generate_kwargs)
+                all_batch_inputs = [
+                    batch_messages[i:i+max_batch_size] for i in range(0, len(batch_messages), max_batch_size)
+                ]
+                with Pool(num_proc) as p:
+                    all_batch_results = list(tqdm(p.imap(_batch_request_func, all_batch_inputs), total=len(all_batch_inputs), desc=desc or "LLMEngine Batch Inference"))
                 results = []
-                for i in tqdm(range(0, len(batch_messages), max_batch_size), desc=desc or "LLMEngine Batch Inference"):
-                    _results = batch_request_func(model_name, batch_messages[i:i+max_batch_size], conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs)
-                    results.extend(_results)
+                for batch_results in all_batch_results:
+                    results.extend(batch_results)
                     
         return results
     
