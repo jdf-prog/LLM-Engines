@@ -3,6 +3,7 @@ import json
 import hashlib
 import time
 import filelock
+import random
 from datetime import datetime
 from openai import OpenAI
 from typing import List, Union
@@ -356,7 +357,7 @@ def openai_batch_request(
         else:
             tqdm_bar.desc = batch_status["status"]
             tqdm_bar.refresh()
-        time.sleep(10)
+        time.sleep(random.randint(5, 10))
         
     if batch_status["status"] == "completed":
         output_path = batch_status["output_path"]

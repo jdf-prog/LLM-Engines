@@ -5,6 +5,7 @@ import json
 import hashlib
 import time
 import filelock
+import random
 from typing import List, Union
 from anthropic import NOT_GIVEN
 from datetime import datetime
@@ -320,7 +321,7 @@ def claude_batch_request(
         else:
             tqdm_bar.desc = batch_status["status"]
             tqdm_bar.refresh()
-        time.sleep(10)
+        time.sleep(random.randint(5, 10))
         
     if batch_status["status"] == "completed":
         output_path = batch_status["output_path"]
