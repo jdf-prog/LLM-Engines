@@ -217,7 +217,6 @@ def check_batch_status(batch_id, overwrite:bool=False):
         batch_status = batch_submission_status[batch_id]["status"]
     else:
         batch_status = None
-    print(batch_submission_status[batch_id])
     if batch_status == "completed":
         output_path = Path(batch_submission_status[batch_id]["output_path"])
         if output_path.exists() and not overwrite:
