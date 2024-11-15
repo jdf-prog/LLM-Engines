@@ -263,11 +263,49 @@ def check_batch_status(batch_result_id, overwrite:bool=False):
     write_batch_submission_status(batch_submission_status)
     return batch_submission_status[batch_id]
 
+def get_batch_progress(batch_result_id):
+    batch_status = check_batch_status(batch_result_id)
+    num_succeeded = batch_status["claude_batch_metadata"]['request_counts']['succeeded']
+    num_processing = batch_status["claude_batch_metadata"]['request_counts']['processing']
+    num_errored = batch_status["claude_batch_metadata"]['request_counts']['errored']
+    num_expired = batch_status["claude_batch_metadata"]['request_counts']['expired']
+    num_canceled = batch_status["claude_batch_metadata"]['request_counts']['canceled']
+    num_total = num_succeeded + num_processing + num_errored + num_expired + num_canceled
+    n = num_succeeded + num_errored + num_expired + num_canceled
+    total = num_total
+    tqdm_postfix = {
+        "completed": num_succeeded,
+        "processing": num_processing,
+        "errored": num_errored,
+        "expired": num_expired,
+        "canceled": num_canceled
+    }
+    return n, total, tqdm_postfix, batch_status["status"]
+
+def get_batch_result(batch_id, generate_kwargs={}):
+    batch_status = check_batch_status(batch_id)
+    if batch_status["status"] == "completed":
+        output_path = batch_status["output_path"]
+        results = []
+        with open(output_path, "r") as f:
+            raw_results = [json.loads(line) for line in f.readlines()]
+        results = []
+        for item in raw_results:
+            if item["result"]["type"] == "succeeded":
+                results.append(item["result"]['message']["content"][0]['text'])
+            else:
+                results.append(None)
+        print("Batch requests status counts:", batch_status["claude_batch_metadata"]['request_counts'])
+    else:
+        results = None
+    return results
+
 def claude_batch_request(
     model_name:str,
     batch_messages:List[Union[str, List[str], List[dict]]],
     conv_system_msg:str=None,
     desc:str=None,
+    detach:bool=False,
     **generate_kwargs
 ):
     if isinstance(batch_messages[0], str):
@@ -291,6 +329,8 @@ def claude_batch_request(
         generate_kwargs.pop("stream")
     batch_file = save_batch_file(batch_messages, model_name, **generate_kwargs)
     batch_result_id = submit_batch_file(batch_file)
+    if detach:
+        return batch_result_id
     num_total = len(batch_messages)
     tqdm_bar = tqdm(total=num_total, desc=desc or "LLMEngine Batch Inference")
     while True:
@@ -322,22 +362,8 @@ def claude_batch_request(
             tqdm_bar.desc = batch_status["status"]
             tqdm_bar.refresh()
         time.sleep(random.randint(5, 10))
-        
-    if batch_status["status"] == "completed":
-        output_path = batch_status["output_path"]
-        results = []
-        with open(output_path, "r") as f:
-            raw_results = [json.loads(line) for line in f.readlines()]
-        results = []
-        for item in raw_results:
-            if item["result"]["type"] == "succeeded":
-                results.append(item["result"]['message']["content"][0]['text'])
-            else:
-                results.append(None)
-        print("Batch requests status counts:", batch_status["claude_batch_metadata"]['request_counts'])
-    else:
-        print(f"Error: batch {batch_result_id} failed with status {batch_status['status']}")
-        results = None
+    
+    results = get_batch_result(batch_result_id)
     return results
 
 

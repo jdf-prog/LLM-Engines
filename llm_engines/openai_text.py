@@ -298,11 +298,53 @@ def check_batch_status(batch_id, overwrite:bool=False):
     write_batch_submission_status(batch_submission_status)
     return batch_submission_status[batch_id]
 
+def get_batch_progress(batch_id):
+    batch_status = check_batch_status(batch_id)
+    num_completed = batch_status["openai_batch_metadata"]['request_counts']['completed']
+    num_total = batch_status["openai_batch_metadata"]['request_counts']['total']
+    num_failed = batch_status["openai_batch_metadata"]['request_counts']['failed']
+    n = num_completed
+    total = num_total
+    tqdm_postfix = {
+        "completed": num_completed,
+        "total": num_total,
+        "failed": num_failed
+    }
+    return n, total, tqdm_postfix, batch_status['status']
+
+def get_batch_result(batch_id, generate_kwargs={}):
+    batch_status = check_batch_status(batch_id)
+    if not batch_status["status"] == "completed":
+        return None
+    output_path = batch_status["output_path"]
+        
+    if not os.path.exists(output_path):
+        client = OpenAI()
+        batch = client.batches.retrieve(batch_id)
+        content = client.files.content(batch.output_file_id)
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Downloading output file for batch {batch_id}")
+        content.write_to_file(output_path)
+        
+    results = []
+    with open(output_path, "r") as f:
+        results = [json.loads(line) for line in f.readlines()]
+    if "logprobs" not in generate_kwargs:
+        all_completions = [[choice['message']['content'] for choice in x['response']['body']['choices']] for x in results]
+    else:
+        all_completions = [[(choice['message']['content'], choice['logprobs']) for choice in x['response']['body']['choices']] for x in results]
+    if all(len(x) == 1 for x in all_completions):
+        all_completions = [x[0] for x in all_completions]
+    results = all_completions
+    return results
+
 def openai_batch_request(
     model_name:str,
     batch_messages:List[Union[str, List[str], List[dict]]],
     conv_system_msg:str=None,
     desc:str=None,
+    detach:bool=False,
     **generate_kwargs
 ):
     if isinstance(batch_messages[0], str):
@@ -326,6 +368,8 @@ def openai_batch_request(
         generate_kwargs.pop("stream")
     batch_file = save_batch_file(batch_messages, model_name, **generate_kwargs)
     batch_result_id = submit_batch_file(batch_file)
+    if detach:
+        return batch_result_id
     num_total = len(batch_messages)
     tqdm_bar = tqdm(total=num_total, desc=desc or "LLMEngine Batch Inference")
     while True:
@@ -367,31 +411,8 @@ def openai_batch_request(
             tqdm_bar.desc = batch_status["status"]
             tqdm_bar.refresh()
         time.sleep(random.randint(5, 10))
-        
-    if batch_status["status"] == "completed":
-        output_path = batch_status["output_path"]
-        
-        if not os.path.exists(output_path):
-            client = OpenAI()
-            batch = client.batches.retrieve(batch_result_id)
-            content = client.files.content(batch.output_file_id)
-            output_path = Path(output_path)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            print(f"Downloading output file for batch {batch_result_id}")
-            content.write_to_file(output_path)
-            
-        results = []
-        with open(output_path, "r") as f:
-            results = [json.loads(line) for line in f.readlines()]
-        if "logprobs" not in generate_kwargs:
-            all_completions = [[choice['message']['content'] for choice in x['response']['body']['choices']] for x in results]
-        else:
-            all_completions = [[(choice['message']['content'], choice['logprobs']) for choice in x['response']['body']['choices']] for x in results]
-        if all(len(x) == 1 for x in all_completions):
-            all_completions = [x[0] for x in all_completions]
-        results = all_completions
-    else:
-        results = None
+    
+    results = get_batch_result(batch_result_id, generate_kwargs)
     return results
 
 if __name__ == "__main__":

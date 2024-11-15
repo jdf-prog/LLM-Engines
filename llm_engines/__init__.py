@@ -438,11 +438,11 @@ class LLMEngine:
         else:
             if engine == "openai":
                 print("Using OpenAI batch API")
-                from .openai_text import openai_batch_request
+                from .openai_text import openai_batch_request, check_batch_status, get_batch_progress, get_batch_result
                 batch_request_func = openai_batch_request
             elif engine == "claude":
                 print("Using Claude batch API")
-                from .claude import claude_batch_request
+                from .claude import claude_batch_request, check_batch_status, get_batch_progress, get_batch_result
                 batch_request_func = claude_batch_request
             else:
                 raise ValueError(f"Engine {engine} not supported for batch API")
@@ -451,17 +451,41 @@ class LLMEngine:
             else:
                 # using multiprocess to submit batch request per batch
                 from functools import partial
-                from multiprocessing import Pool
                 
-                _batch_request_func = partial(batch_request_func, model_name, conv_system_msg=conv_system_msg, **generate_kwargs)
                 all_batch_inputs = [
                     batch_messages[i:i+max_batch_size] for i in range(0, len(batch_messages), max_batch_size)
                 ]
-                with Pool(num_proc) as p:
-                    all_batch_results = list(tqdm(p.imap(_batch_request_func, all_batch_inputs), total=len(all_batch_inputs), desc=desc or "LLMEngine Batch Inference"))
-                results = []
-                for batch_results in all_batch_results:
-                    results.extend(batch_results)
+                # submit detach jobs
+                batch_ids = []
+                for batch_inputs in all_batch_inputs:
+                    batch_ids.append(batch_request_func(model_name, batch_inputs, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs))
+                # wait for all jobs to finish and periodically check the status
+                idx = 0
+                tqdm_bar = tqdm(total=len(batch_ids), desc=desc or "LLMEngine Batch Inference")
+                all_batch_status = [check_batch_status(batch_id)['status'] for batch_id in batch_ids]
+                while True:
+                    batch_id = batch_ids[idx]
+                    n, total, tqdm_postfix, cur_batch_status = get_batch_progress(batch_id)
+                    tqdm_bar.set_postfix_str(tqdm_postfix)
+                    tqdm_bar.n = n
+                    tqdm_bar.total = total
+                    tqdm_bar.desc = cur_batch_status + f" (batch {idx+1}/{len(batch_ids)})"
+                    tqdm_bar.refresh()
+                    all_batch_status[idx] = cur_batch_status
+                    if all(status == "completed" for status in all_batch_status):
+                        tqdm_bar.close()
+                        break
+                    idx = (idx + 1) % len(batch_ids)
+                
+                # collect results
+                all_batch_results = []
+                for i, batch_id in enumerate(batch_ids):
+                    batch_results = get_batch_result(batch_id)
+                    if batch_results:
+                        all_batch_results.extend(get_batch_result(batch_id))
+                    else:
+                        raise ValueError(f"Warning: batch {batch_id} has no results")
+                results = batch_results
                     
         return results
     
