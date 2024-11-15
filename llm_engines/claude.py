@@ -200,9 +200,11 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
 
 def check_batch_status(batch_result_id, overwrite:bool=False):
     batch_submission_status = read_batch_submission_status()
-    
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-    batch = client.beta.messages.batches.retrieve(batch_result_id)
+    try:
+        batch = client.beta.messages.batches.retrieve(batch_result_id)
+    except anthropic.NotFoundError as e:
+        return None
     batch_id = batch.id
     batch_status = batch.processing_status
     batch_desc = batch_submission_status[batch_id]["description"] if batch_id in batch_submission_status else ""
@@ -335,6 +337,7 @@ def claude_batch_request(
     tqdm_bar = tqdm(total=num_total, desc=desc or "LLMEngine Batch Inference")
     while True:
         batch_status = check_batch_status(batch_result_id)
+        assert batch_status is not None, f"Error: batch {batch_result_id} not found in Anthropic API"
         num_succeeded = batch_status["claude_batch_metadata"]['request_counts']['succeeded']
         num_processing = batch_status["claude_batch_metadata"]['request_counts']['processing']
         num_errored = batch_status["claude_batch_metadata"]['request_counts']['errored']

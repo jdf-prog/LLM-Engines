@@ -453,19 +453,31 @@ class LLMEngine:
                 from functools import partial
                 import time
                 
+                max_slots = num_proc
                 all_batch_inputs = [
                     batch_messages[i:i+max_batch_size] for i in range(0, len(batch_messages), max_batch_size)
                 ]
                 # submit detach jobs
-                batch_ids = []
-                for batch_inputs in all_batch_inputs:
-                    batch_ids.append(batch_request_func(model_name, batch_inputs, conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs))
+                batch_ids = [None] * len(all_batch_inputs)
                 # wait for all jobs to finish and periodically check the status
                 idx = 0
                 tqdm_bar = tqdm(total=len(batch_ids), desc=desc or "LLMEngine Batch Inference")
-                all_batch_status = [check_batch_status(batch_id)['status'] for batch_id in batch_ids]
+                all_batch_status = [check_batch_status(batch_id)['status'] if batch_id is not None else "pending" for batch_id in batch_ids]
                 while True:
                     batch_id = batch_ids[idx]
+                    if batch_id is None:
+                        cur_slots = len([bstatus for bstatus in all_batch_status if bstatus not in ['pending', 'completed', 'cancelled', 'canceled', "failed", "expired"]])
+                        if cur_slots < max_slots:
+                            batch_id = batch_request_func(model_name, all_batch_inputs[idx], conv_system_msg=conv_system_msg, desc=desc, **generate_kwargs, detach=True)
+                            batch_ids[idx] = batch_id
+                        else:
+                            tqdm_bar.n = 0
+                            tqdm_bar.total = len(all_batch_inputs[idx])
+                            tqdm.desc = "pending" + f" (batch {idx+1}/{len(batch_ids)})"
+                            tqdm.refresh
+                            time.sleep(5)
+                            continue
+                        
                     n, total, tqdm_postfix, cur_batch_status = get_batch_progress(batch_id)
                     tqdm_bar.set_postfix_str(tqdm_postfix)
                     tqdm_bar.n = n

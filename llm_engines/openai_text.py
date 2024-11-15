@@ -4,6 +4,7 @@ import hashlib
 import time
 import filelock
 import random
+import openai
 from datetime import datetime
 from openai import OpenAI
 from typing import List, Union
@@ -244,7 +245,12 @@ def check_batch_status(batch_id, overwrite:bool=False):
     if batch_id in batch_submission_status:
         batch_status = batch_submission_status[batch_id]["status"]
     else:
-        batch_status = None
+        client = OpenAI()
+        try:
+            batch = client.batches.retrieve(batch_id)
+        except openai.error.NotFoundError:
+            print(f"Batch {batch_id} not found.")
+            return None
     if batch_status == "completed":
         output_path = Path(batch_submission_status[batch_id]["output_path"])
         if output_path.exists() and not overwrite:
@@ -374,6 +380,7 @@ def openai_batch_request(
     tqdm_bar = tqdm(total=num_total, desc=desc or "LLMEngine Batch Inference")
     while True:
         batch_status = check_batch_status(batch_result_id)
+        assert batch_status is not None, f"Error: {batch_result_id} not found in batch submission status or OpenAI API"
         num_completed = batch_status["openai_batch_metadata"]['request_counts']['completed']
         num_total = batch_status["openai_batch_metadata"]['request_counts']['total']
         num_failed = batch_status["openai_batch_metadata"]['request_counts']['failed']
