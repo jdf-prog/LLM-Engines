@@ -451,6 +451,7 @@ class LLMEngine:
             else:
                 # using multiprocess to submit batch request per batch
                 from functools import partial
+                import time
                 
                 all_batch_inputs = [
                     batch_messages[i:i+max_batch_size] for i in range(0, len(batch_messages), max_batch_size)
@@ -476,6 +477,7 @@ class LLMEngine:
                         tqdm_bar.close()
                         break
                     idx = (idx + 1) % len(batch_ids)
+                    time.sleep(10)
                 
                 # collect results
                 all_batch_results = []
