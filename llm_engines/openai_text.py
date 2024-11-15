@@ -31,7 +31,6 @@ def read_batch_submission_status():
     return batch_submission_status
 
 def write_batch_submission_status(batch_submission_status):
-    batch_submission_status_file.parent.mkdir(parents=True, exist_ok=True)
     lock = filelock.FileLock(str(batch_submission_status_file) + ".lock", timeout=30)
     try:
         with lock:
@@ -184,22 +183,32 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
             return key
         else:
             continue
-        
+    
+    batch_result = None
+    for batch in client.batches.list(limit=10):
+        if batch.metadata and (batch.metadata.get('input_path') == str(batch_file)) and batch.status in ["validating", "in_progress", "finalizing", "completed"]:
+            batch_result = batch
+            break
+    
     completion_window = "24h"
     endpoint = "/v1/chat/completions"
-    batch_result = client.batches.create(
-        input_file_id=batch_input_file_id,
-        endpoint=endpoint,
-        completion_window=completion_window,
-        metadata={
-            "project": project_name,
-            "description": description,
-            "input_path": str(batch_file),
-            "output_path": str(output_path)
-        }
-    )
-    print(f"Batch {batch_result.id} submitted")
-    
+    if batch_result is None:
+        batch_result = client.batches.create(
+            input_file_id=batch_input_file_id,
+            endpoint=endpoint,
+            completion_window=completion_window,
+            metadata={
+                "project": project_name,
+                "description": description,
+                "input_path": str(batch_file),
+                "output_path": str(output_path)
+            }
+        )
+        print(f"Batch {batch_result.id} submitted")
+        submit_time = str(datetime.now())
+    else:
+        print(f"Batch already exists for {batch_file}, but not found in the managing file, writing to {batch_submission_status_file}")
+        submit_time = batch_result.created_at
     
     # time should be in the current timezone, in the format like 2022-01-01T00:00:00
     batch_submission_status[batch_result.id] = {    
@@ -215,9 +224,9 @@ def submit_batch_file(batch_file:str, output_path:str=None, project_name:str=Non
         "output_path": str(output_path),
         "batch_input_file_id": batch_input_file_id,
         "batch_result_id": batch_result.id,
-        "status": "submitted",
+        "status": batch_result.status,
         "timeline": {
-            "submitted": str(datetime.now()),
+            "submitted": submit_time,
             "completed": None,
             "failed": None,
             "downloaded": None
@@ -239,7 +248,7 @@ def check_batch_status(batch_id, overwrite:bool=False):
     if batch_status == "completed":
         output_path = Path(batch_submission_status[batch_id]["output_path"])
         if output_path.exists() and not overwrite:
-            print(f"File {output_path} already exists. Skipping writing to file.")
+            print(f"Output file {output_path} already exists. Skipping writing.")
         else:
             print(f"Downloading output file for batch {batch_id}")
             client = OpenAI()
