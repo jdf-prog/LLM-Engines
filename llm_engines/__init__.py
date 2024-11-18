@@ -499,7 +499,7 @@ class LLMEngine:
                         all_batch_results.extend(get_batch_result(batch_id))
                     else:
                         raise ValueError(f"Warning: batch {batch_id} has no results")
-                results = batch_results
+                results = all_batch_results
                     
         return results
     
