@@ -494,9 +494,9 @@ class LLMEngine:
                 # collect results
                 all_batch_results = []
                 for i, batch_id in enumerate(batch_ids):
-                    batch_results = get_batch_result(batch_id)
+                    batch_results = get_batch_result(batch_id, generate_kwargs=generate_kwargs)
                     if batch_results:
-                        all_batch_results.extend(get_batch_result(batch_id))
+                        all_batch_results.extend(batch_results)
                     else:
                         raise ValueError(f"Warning: batch {batch_id} has no results")
                 results = all_batch_results
