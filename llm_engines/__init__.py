@@ -473,8 +473,8 @@ class LLMEngine:
                         else:
                             tqdm_bar.n = 0
                             tqdm_bar.total = len(all_batch_inputs[idx])
-                            tqdm.desc = "pending" + f" (batch {idx+1}/{len(batch_ids)})"
-                            tqdm.refresh
+                            tqdm_bar.desc = "pending" + f" (batch {idx+1}/{len(batch_ids)})"
+                            tqdm_bar.refresh()
                             time.sleep(5)
                             continue
                         
