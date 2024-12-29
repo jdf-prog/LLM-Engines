@@ -474,7 +474,14 @@ class LLMEngine:
                             tqdm_bar.n = 0
                             tqdm_bar.total = len(all_batch_inputs[idx])
                             tqdm_bar.desc = "pending" + f" (batch {idx+1}/{len(batch_ids)})"
+                            tqmd_postfix = tqdm_postfix = {
+                                "completed": 0,
+                                "total": len(all_batch_inputs[idx]),
+                                "failed": 0,
+                            }
+                            tqdm_bar.set_postfix_str(tqmd_postfix)
                             tqdm_bar.refresh()
+                            idx = (idx + 1) % len(batch_ids)
                             time.sleep(5)
                             continue
                         
