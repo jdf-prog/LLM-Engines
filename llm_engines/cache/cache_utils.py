@@ -43,5 +43,8 @@ def get_inputs_hash(inputs, conv_system_msg, generate_kwargs=None):
     
     if generate_kwargs:
         to_hash_inputs.append(str(generate_kwargs))
-        
-    return hashlib.md5("".join(to_hash_inputs).encode()).hexdigest()
+    
+    try:
+        return hashlib.md5("".join(to_hash_inputs).encode()).hexdigest()
+    except UnicodeEncodeError as e:
+        return hashlib.md5("".join(to_hash_inputs).encode('utf-16', 'surrogatepass').decode('utf-16').encode('utf-8')).hexdigest()
