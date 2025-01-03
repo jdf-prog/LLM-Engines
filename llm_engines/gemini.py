@@ -71,13 +71,17 @@ def call_worker_gemini(messages:List[str], model_name, timeout:int=60, conv_syst
             # print("ResourceExhausted, retrying...")
             time.sleep(10)
             continue
-    if not stream:
-        return response.text
-    else:
-        def generate_stream():
-            for chunk in response:
-                yield chunk.text
-        return generate_stream()
+    try:
+        if not stream:
+            return response.text
+        else:
+            def generate_stream():
+                for chunk in response:
+                    yield chunk.text
+            return generate_stream()
+    except ValueError as e:
+        print(f"Empty response from gemini due to {e}")
+        return None
 
 if __name__ == "__main__":
     from icecream import ic
