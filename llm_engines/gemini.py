@@ -1,9 +1,11 @@
 import os
+import time
 from typing import List
 import google.ai.generativelanguage as glm
 import google.generativeai as genai
+from google.api_core.exceptions import ServiceUnavailable, ResourceExhausted
 from .utils import with_timeout
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 safety_settings = [
     {
@@ -55,7 +57,20 @@ def call_worker_gemini(messages:List[str], model_name, timeout:int=60, conv_syst
     @with_timeout(timeout)
     def generate_content():
         return model.generate_content(new_messages, safety_settings=safety_settings, generation_config=generation_config, request_options=request_options, stream=stream)
-    response = generate_content()
+    while True:
+        try:
+            response = generate_content()
+            break
+        except ServiceUnavailable as e:
+            # sleep for a while and retry
+            # print("ServiceUnavailable, retrying...")
+            time.sleep(2)
+            continue
+        except ResourceExhausted as e:
+            # sleep for a while and retry
+            # print("ResourceExhausted, retrying...")
+            time.sleep(10)
+            continue
     if not stream:
         return response.text
     else:

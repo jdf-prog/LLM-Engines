@@ -103,7 +103,7 @@ print(response)
 
 - gemini models
 ```python
-# export GOOGLE_API_KEY="your_gemini_api_key"
+# export GEMINI_API_KEY="your_gemini_api_key"
 from llm_engines import LLMEngine
 model_name="gemini-1.5-flash"
 llm = LLMEngine()
