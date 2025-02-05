@@ -116,7 +116,7 @@ def launch_vllm_worker(
         "python3", "-m", "vllm.entrypoints.openai.api_server",
         "--model", base_model_name_or_path,
         "--dtype", dtype,
-        # "--api-key", "vllm-engine-token",
+        "--api-key", "vllm-engine-token",
         "--port", str(port),
         "--host", host,
         "--tensor-parallel-size", str(num_gpus),
@@ -157,7 +157,7 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=300, conv_s
     
     client = openai.OpenAI(
         base_url=f"{worker_addr}/v1",
-        # api_key="vllm-engine-token",
+        api_key="vllm-engine-token",
     )
 
     args_names, kwargs_names = get_function_arg_names(client.chat.completions.create)
