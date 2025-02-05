@@ -73,7 +73,7 @@ def call_worker_openai(messages:List[str], model_name, timeout:int=60, conv_syst
         return_logprobs = True
     
     if not stream:
-        if "logprobs" not in generate_kwargs:
+        if "logprobs" not in generate_kwargs or not generate_kwargs["logprobs"]:
             if len(completion.choices) > 1:
                 return [c.message.content for c in completion.choices]
             else:
@@ -336,7 +336,7 @@ def get_batch_result(batch_id, generate_kwargs={}):
     results = []
     with open(output_path, "r") as f:
         results = [json.loads(line) for line in f.readlines()]
-    if "logprobs" not in generate_kwargs:
+    if "logprobs" not in generate_kwargs or not generate_kwargs["logprobs"]:
         all_completions = [[choice['message']['content'] for choice in x['response']['body']['choices']] for x in results]
     else:
         all_completions = [[(choice['message']['content'], choice['logprobs']) for choice in x['response']['body']['choices']] for x in results]

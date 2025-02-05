@@ -41,7 +41,7 @@ def call_worker_together(messages, model_name, timeout:int=60, conv_system_msg=N
                     raise e
                 continue
         if not stream:
-            if "logprobs" not in generate_kwargs:
+            if "logprobs" not in generate_kwargs or not generate_kwargs["logprobs"]:
                 if len(completion.choices) > 1:
                     return [c.message.content for c in completion.choices]
                 else:

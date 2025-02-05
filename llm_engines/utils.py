@@ -148,7 +148,7 @@ def _generation_cache_wrapper(inputs: Union[str, List[str]], call_model_worker, 
     if not overwrite_cache:
         cached_value = cache_dict[inputs_hash]
         if cached_value:
-            if "logprobs" not in generate_kwargs:
+            if "logprobs" not in generate_kwargs or not generate_kwargs["logprobs"]:
                 return cached_value["output"]
             elif "logprobs" in cached_value:
                 return cached_value["output"], cached_value["logprobs"]
