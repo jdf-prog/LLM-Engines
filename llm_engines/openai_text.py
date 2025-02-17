@@ -52,9 +52,12 @@ def call_worker_openai(messages:List[str], model_name, timeout:int=60, conv_syst
         new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
     # initialize openai client
     client = OpenAI()
-    if "o1" in model_name:
+    o_series = ["o1", "o3"]
+    if any(o in model_name for o in o_series):
         # fixed parameters for openai o1 models
-        generate_kwargs.pop("max_tokens", None)
+        max_tokens = generate_kwargs.pop("max_tokens", None)
+        if max_tokens is not None:
+            generate_kwargs["max_completion_tokens"] = max_tokens
         generate_kwargs['temperature'] = 1
         generate_kwargs['top_p'] = 1
         generate_kwargs['n'] = 1
