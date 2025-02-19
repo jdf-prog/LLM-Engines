@@ -8,6 +8,9 @@ The correctness of the inference has been verified by comparing the outputs of t
 For example, the outputs of a single model using 3 enginer (VLLM, SGLang, Together) will be the same when `temperature=0.0` and `max_tokens=None`.
 Try examples below to see the outputs of different engines.
 
+## News
+- 2025-02-18: Add support for `grok` models.
+
 ## Installation
     
 ```bash
