@@ -7,7 +7,7 @@ import psutil
 import hashlib
 import subprocess
 from functools import partial
-from .utils import generation_cache_wrapper, retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError
+from .utils import generation_cache_wrapper, retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError, max_retry_wrapper  
 from .cache.cache_utils import get_batch_cache_dir
 from typing import Union, List
 from tqdm import tqdm
@@ -94,6 +94,9 @@ def get_call_worker_func(
     elif engine == "together":
         from .together import call_worker_together, call_worker_together_completion
         call_model_worker = call_worker_together if not completion else call_worker_together_completion
+    elif engine == "grok":
+        from .grok import call_worker_grok, call_worker_grok_completion
+        call_model_worker = call_worker_grok if not completion else call_worker_grok_completion 
     elif engine in ["vllm", "sglang"]:
         assert num_gpu_per_worker is not None, "num_gpu_per_worker must be provided for vllm and sglang"
         if engine == "vllm":
@@ -426,9 +429,10 @@ class LLMEngine:
                 from functools import partial
                 from multiprocessing import Pool
                 num_proc = min(num_proc, len(batch_messages))
-                call_model_worker = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+                call_model_worker_mp = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+                call_model_worker_mp = partial(max_retry_wrapper, call_model_worker_mp)
                 with Pool(num_proc) as p:
-                    results = list(tqdm(p.imap(call_model_worker, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
+                    results = list(tqdm(p.imap(call_model_worker_mp, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
                 if results:
                     for i, message in enumerate(to_write_batch_messages):
                         message["output"] = results[i]

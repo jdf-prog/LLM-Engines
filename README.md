@@ -31,7 +31,7 @@ from llm_engines import LLMEngine
 model_name="meta-llama/Meta-Llama-3-8B-Instruct"
 llm = LLMEngine()
 llm.load_model(
-    model_name="meta-llama/Meta-Llama-3-8B-Instruct", 
+    model_name=model_name,
     num_workers=1, # number of workers
     num_gpu_per_worker=1, # tensor parallelism size for each worker
     engine="vllm", # or "sglang"
@@ -48,7 +48,7 @@ from llm_engines import LLMEngine
 model_name="meta-llama/Llama-3-8b-chat-hf"
 llm = LLMEngine()
 llm.load_model(
-    model_name="meta-llama/Llama-3-8b-chat-hf", 
+    model_name=model_name, 
     engine="together", # or "openai", "mistral", "claude"
     use_cache=False
 )
@@ -63,8 +63,23 @@ from llm_engines import LLMEngine
 model_name="gpt-3.5-turbo"
 llm = LLMEngine()
 llm.load_model(
-    model_name="gpt-3.5-turbo", 
+    model_name=model_name, 
     engine="openai", # or "vllm", "together", "mistral", "claude"
+    use_cache=False
+)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
+print(response)
+```
+
+- grok models
+```python
+# export XAI_API_KEY="your_openai_api_key"
+from llm_engines import LLMEngine
+model_name="grok-2-latest"
+llm = LLMEngine()
+llm.load_model(
+    model_name=model_name,
+    engine="grok", # or "vllm", "together", "mistral", "claude"
     use_cache=False
 )
 response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
@@ -78,7 +93,7 @@ from llm_engines import LLMEngine
 model_name="mistral-large-latest"
 llm = LLMEngine()
 llm.load_model(
-    model_name="mistral-large-latest", 
+    model_name=model_name,
     engine="mistral", # or "vllm", "together", "openai", "claude"
     use_cache=False
 )
@@ -93,7 +108,7 @@ from llm_engines import LLMEngine
 model_name="claude-3-opus-20240229"
 llm = LLMEngine()
 llm.load_model(
-    model_name="claude-3-opus-20240229", 
+    model_name=model_name,
     engine="claude", # or "vllm", "together", "openai", "mistral"
     use_cache=False
 )
@@ -108,7 +123,7 @@ from llm_engines import LLMEngine
 model_name="gemini-1.5-flash"
 llm = LLMEngine()
 llm.load_model(
-    model_name="gemini-1.5-flash", 
+    model_name=model_name,
     engine="gemini", # or "vllm", "together", "openai", "mistral", "claude"
     use_cache=False
 )

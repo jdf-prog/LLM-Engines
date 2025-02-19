@@ -253,6 +253,13 @@ def with_timeout(timeout):
         return wrapper
     return decorator
 
+def max_retry_wrapper(func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except MaxRetriesExceededError as e:
+        print(str(e))
+        return None
+
 def get_function_arg_names(func):
     signature = inspect.signature(func)
     parameters = signature.parameters
