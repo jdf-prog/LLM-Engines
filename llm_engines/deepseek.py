@@ -11,8 +11,8 @@ from typing import List, Union
 from pathlib import Path
 from tqdm import tqdm
 
-# no image, multi-turn, do not use grok_generate, but can refer to it
-def call_worker_grok(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
+# no image, multi-turn, do not use deepseek_generate, but can refer to it
+def call_worker_deepseek(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to openai format
     new_messages = []
     if conv_system_msg:
@@ -20,8 +20,8 @@ def call_worker_grok(messages:List[str], model_name, timeout:int=60, conv_system
     for i, message in enumerate(messages):
         new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
     # initialize openai client
-    client = OpenAI(api_key=os.environ["XAI_API_KEY"], base_url="https://api.x.ai/v1")
-    # call grok
+    client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com")
+    # call deepseek
     completion = client.chat.completions.create(
         model=model_name,
         messages=new_messages,
@@ -51,10 +51,10 @@ def call_worker_grok(messages:List[str], model_name, timeout:int=60, conv_system
                     yield chunk.choices[0].delta.content
         return generate_stream()
 
-def call_worker_grok_completion(prompt:str, model_name, timeout:int=60, **generate_kwargs) -> str:
+def call_worker_deepseek_completion(prompt:str, model_name, timeout:int=60, **generate_kwargs) -> str:
     # initialize openai client
-    client = OpenAI(api_key=os.environ["XAI_API_KEY"], base_url="https://api.x.ai/v1")
-    # call grok
+    client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com")
+    # call deepseek
     print(generate_kwargs)
     if "max_tokens" not in generate_kwargs:
         generate_kwargs["max_tokens"] = 256 # have to set max_tokens to be explicit
@@ -79,5 +79,5 @@ def call_worker_grok_completion(prompt:str, model_name, timeout:int=60, **genera
     
 if __name__ == "__main__":
     from icecream import ic
-    ic(call_worker_grok(["Hello"], "grok-2-latest"))
-    ic(call_worker_grok_completion("Hello", "grok-2-latest"))
+    ic(call_worker_deepseek(["Hello"], "deepseek-reasoner"))
+    ic(call_worker_deepseek_completion("Hello", "deepseek-reasoner"))

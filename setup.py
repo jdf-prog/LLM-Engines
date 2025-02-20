@@ -36,6 +36,7 @@ setup(
         "mistralai",
         "anthropic>=0.36.0",
         "fastapi<=0.112.2"
+        "fireworks-ai"
     ],
     extras_require={
         "flash-attn": {

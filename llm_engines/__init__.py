@@ -97,6 +97,9 @@ def get_call_worker_func(
     elif engine == "grok":
         from .grok import call_worker_grok, call_worker_grok_completion
         call_model_worker = call_worker_grok if not completion else call_worker_grok_completion 
+    elif engine == "fireworks":
+        from .fireworks import call_worker_fireworks, call_worker_fireworks_completion
+        call_model_worker = call_worker_fireworks if not completion else call_worker_fireworks_completion
     elif engine in ["vllm", "sglang"]:
         assert num_gpu_per_worker is not None, "num_gpu_per_worker must be provided for vllm and sglang"
         if engine == "vllm":

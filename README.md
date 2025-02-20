@@ -10,6 +10,7 @@ Try examples below to see the outputs of different engines.
 
 ## News
 - 2025-02-18: Add support for `grok` models.
+- 2025-02-19: Add support for `fireworks` api services, which provide calling for deepseek-r1 models with high speed.
 
 ## Installation
     
@@ -76,7 +77,7 @@ print(response)
 
 - grok models
 ```python
-# export XAI_API_KEY="your_openai_api_key"
+# export XAI_API_KEY="your_xai_api_key"
 from llm_engines import LLMEngine
 model_name="grok-2-latest"
 llm = LLMEngine()
@@ -128,6 +129,22 @@ llm = LLMEngine()
 llm.load_model(
     model_name=model_name,
     engine="gemini", # or "vllm", "together", "openai", "mistral", "claude"
+    use_cache=False
+)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
+print(response)
+```
+
+- fireworks api
+```python
+```python
+# export FIREWORKS_API_KEY="your_fireworks_api_key"
+from llm_engines import LLMEngine
+model_name="accounts/fireworks/models/deepseek-r1"
+llm = LLMEngine()
+llm.load_model(
+    model_name=model_name,
+    engine="fireworks", # or "vllm", "together", "openai", "mistral", "claude"
     use_cache=False
 )
 response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
