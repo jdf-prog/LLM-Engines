@@ -11,11 +11,11 @@ def call_worker_together(messages, model_name, timeout:int=60, conv_system_msg=N
     if model_name.startswith("together_"):
         model_name = model_name.replace("together_", "")
     
-    new_messages = []
+    # change messages to openai format
     if conv_system_msg:
-        new_messages.append({"role": "system", "content": conv_system_msg})
-    for i, message in enumerate(messages):
-        new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
+        new_messages = [{"role": "system", "content": conv_system_msg}] + messages
+    else:
+        new_messages = messages
     
     stream = generate_kwargs.get("stream", False)
     if stream and "n" in generate_kwargs:

@@ -4,9 +4,8 @@ from typing import List
 import google.ai.generativelanguage as glm
 import google.generativeai as genai
 from google.api_core.exceptions import ServiceUnavailable, ResourceExhausted
-from .utils import with_timeout
+from .utils import with_timeout, decode_base64_image_url
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-
 safety_settings = [
     {
         "category": "HARM_CATEGORY_DANGEROUS",
@@ -35,8 +34,27 @@ def call_worker_gemini(messages:List[str], model_name, timeout:int=60, conv_syst
     model = genai.GenerativeModel(model_name, system_instruction=conv_system_msg)
     
     new_messages = []
+    role_map = {"user": "user", "assistant": "model"}
     for i, message in enumerate(messages):
-        new_messages.append({"role": "user" if i % 2 == 0 else "model", "parts": [glm.Part(text=message)]})
+        role = role_map[message["role"]]
+        if isinstance(message["content"], str):
+            new_messages.append({"role": role, "parts": [glm.Part(text=message["content"])]})
+        elif isinstance(message["content"], list):
+            parts = []
+            for sub_message in message["content"]:
+                if sub_message["type"] == "text":
+                    parts.append(glm.Part(text=sub_message["text"]))
+                elif sub_message["type"] == "image_url":
+                    try:
+                        image = decode_base64_image_url(sub_message["image_url"]['url'])
+                    except Exception as e:
+                        image = sub_message["image_url"]['url']
+                    parts.append(image)
+                else:
+                    raise ValueError("Invalid message format")
+            new_messages.append({"role": role, "parts": parts})
+        else:
+            raise ValueError("Invalid message format")
     
     stream = generate_kwargs.pop("stream", False)
     generation_config = genai.GenerationConfig(

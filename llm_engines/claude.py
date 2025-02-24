@@ -6,12 +6,14 @@ import hashlib
 import time
 import filelock
 import random
+import regex as re
+from copy import deepcopy
 from typing import List, Union
 from anthropic import NOT_GIVEN
 from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
-from .utils import with_timeout
+from .utils import with_timeout, is_base64_image_url, encode_base64_image, load_image, decode_base64_image_url
 batch_submission_status_file = Path(os.path.expanduser(f"~/llm_engines/generation_cache")) / "claude_batch_cache" / "batch_submission_status.json"
 batch_submission_status_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -42,15 +44,61 @@ def write_batch_submission_status(batch_submission_status):
     except filelock.Timeout as e:
         print("Timeout acquiring lock")
         raise e
-            
+
+# 5MB
+MAX_IMAGE_SIZE = 5 * 1024 * 1024
+def preprocess_claude_messages(messages:List[dict]) -> List[dict]:
+    messages = deepcopy(messages)
+    for message in messages:
+        if isinstance(message['content'], list):
+            for sub_message in message['content']:
+                if sub_message['type'] == "image_url":
+                    if is_base64_image_url(sub_message['image_url']['url']):
+                        # if image size is greater than 5MB, decode and resize and re-encode
+                        im64 = sub_message['image_url']['url'].split(",", 1)[1]
+                        current_size = len(im64)
+                        # print("current_size", current_size)
+                        if current_size > MAX_IMAGE_SIZE:
+                            print("Warning: Image size is greater than 5MB. Resizing image due to Claude API limit.")
+                            image = decode_base64_image_url(sub_message['image_url']['url'])
+                            image_format = image.format if image.format else "png"
+                            scale_factor = (MAX_IMAGE_SIZE / current_size) ** 0.6
+                            image = image.resize((int(image.width * scale_factor), int(image.height * scale_factor)))
+                            im64 = encode_base64_image(image, image_format)
+                            media_type = "image/png"
+                        else:
+                            start_idx = sub_message['image_url']['url'].find("image/")
+                            end_idx = sub_message['image_url']['url'].find(";base64")
+                            media_type = sub_message['image_url']['url'][start_idx:end_idx].lower()
+                    else:
+                        image = load_image(sub_message['image_url']['url'])
+                        current_size = image.size[0] * image.size[1] * 3
+                        if current_size > MAX_IMAGE_SIZE:
+                            print("Warning: Image size is greater than 5MB. Resizing image due to Claude API limit.")
+                            scale_factor = (MAX_IMAGE_SIZE / current_size) ** 0.6
+                            image = image.resize((int(image.size[0] * scale_factor), int(image.size[1] * scale_factor)))
+                        image_format = image.format if image.format else "png"
+                        im64= encode_base64_image(image, image_format)
+                        media_type = f"image/{image_format}".lower()
+                    sub_message['source'] = {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": im64
+                    }
+                    sub_message['type'] = "image"
+                    sub_message.pop('image_url')
+    return messages
             
 # no image, multi-turn, do not use openai_generate, but can refer to it
 def call_worker_claude(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to mistral format
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-    new_messages = []
-    for i, message in enumerate(messages):
-        new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
+    # change messages to openai format
+    if conv_system_msg:
+        new_messages = [{"role": "system", "content": conv_system_msg}] + messages
+    else:
+        new_messages = messages
+    new_messages = preprocess_claude_messages(new_messages)
              
     generate_kwargs.pop("n", None) # claude does not have n
     if not generate_kwargs.get("max_tokens", None):
@@ -83,12 +131,11 @@ def call_worker_claude(messages:List[str], model_name, timeout:int=60, conv_syst
         ) as stream:
             for text in stream.text_stream:
                 yield text
-                
+    
     if not stream:
         return get_response()
     else:
         return stream_response()
-
 
 def save_batch_file(batch_messages:List[Union[str, dict]], model:str, batch_name:str=None, cache_dir=None, custom_ids=None, **generate_kwargs):
     if isinstance(batch_messages[0], str):

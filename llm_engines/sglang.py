@@ -104,13 +104,13 @@ def call_sglang_worker(messages, model_name, worker_addrs, timeout:int=300, conv
         chat_tokenizers[model_name] = ChatTokenizer(model_name)
     chat_tokenizer = chat_tokenizers[model_name]
     
-    chat_messages = []
+    # change messages to openai format
     if conv_system_msg:
-        chat_messages.append({"role": "system", "content": conv_system_msg})
-    for i, message in enumerate(messages):
-        chat_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
-
-    prompt = chat_tokenizer(chat_messages)
+        chat_messages = [{"role": "system", "content": conv_system_msg}] + messages
+    else:
+        chat_messages = messages
+        
+    # prompt = chat_tokenizer(chat_messages)
 
     worker_addr = random.choice(worker_addrs)
     

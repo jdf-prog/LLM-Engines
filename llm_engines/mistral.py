@@ -5,13 +5,12 @@ from .utils import with_timeout
 
 # no image, multi-turn, do not use openai_generate, but can refer to it
 def call_worker_mistral(messages:List[str], model_name, timeout:int=120, conv_system_msg=None, **generate_kwargs) -> str:
-    # change messages to mistral format
     client = Mistral(api_key=os.environ.get("MISTRAL_API_KEY"))
-    new_messages = []
+    # change messages to openai format
     if conv_system_msg:
-        new_messages.append({"role": "system", "content": conv_system_msg})
-    for i, message in enumerate(messages):
-        new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
+        new_messages = [{"role": "system", "content": conv_system_msg}] + messages
+    else:
+        new_messages = messages
 
     if "n" in generate_kwargs:
         generate_kwargs.pop("n") # mistral does not have n

@@ -10,16 +10,17 @@ from openai import OpenAI
 from typing import List, Union
 from pathlib import Path
 from tqdm import tqdm
+from .cache import get_printable_messages
 
 # no image, multi-turn, do not use grok_generate, but can refer to it
 def call_worker_grok(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to openai format
-    new_messages = []
     if conv_system_msg:
-        new_messages.append({"role": "system", "content": conv_system_msg})
-    for i, message in enumerate(messages):
-        new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
+        new_messages = [{"role": "system", "content": conv_system_msg}] + messages
+    else:
+        new_messages = messages
     # initialize openai client
+    print(get_printable_messages(new_messages))
     client = OpenAI(api_key=os.environ["XAI_API_KEY"], base_url="https://api.x.ai/v1")
     # call grok
     completion = client.chat.completions.create(

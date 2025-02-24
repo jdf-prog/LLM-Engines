@@ -113,8 +113,8 @@ def launch_vllm_worker(
             lora_args += ["--load-format", "bitsandbytes", "--enforce-eager"]
     # python -m vllm.entrypoints.openai.api_server --model NousResearch/Meta-Llama-3-8B-Instruct --dtype auto --api-key token-abc123
     proc = SubprocessMonitor([
-        "python3", "-m", "vllm.entrypoints.openai.api_server",
-        "--model", base_model_name_or_path,
+        "vllm", "serve",
+        base_model_name_or_path,
         "--dtype", dtype,
         "--api-key", "vllm-engine-token",
         "--port", str(port),
@@ -138,21 +138,20 @@ def call_vllm_worker(messages, model_name, worker_addrs, timeout:int=300, conv_s
         if "max_tokens" not in generate_kwargs:
             generate_kwargs["max_tokens"] = generate_kwargs["max_new_tokens"]
         del generate_kwargs["max_new_tokens"]
-    try:
-        if model_name not in chat_tokenizers:
-            chat_tokenizers[model_name] = ChatTokenizer(model_name)
-        chat_tokenizer = chat_tokenizers[model_name]
-        prompt = chat_tokenizer(chat_messages)
-    except Exception as e:
-        pass
+    # try:
+    #     if model_name not in chat_tokenizers:
+    #         chat_tokenizers[model_name] = ChatTokenizer(model_name)
+    #     chat_tokenizer = chat_tokenizers[model_name]
+    #     prompt = chat_tokenizer(chat_messages)
+    # except Exception as e:
+    #     pass
     
-    chat_messages = []
+    # change messages to openai format
     if conv_system_msg:
-        chat_messages.append({"role": "system", "content": conv_system_msg})
-    for i, message in enumerate(messages):
-        chat_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
-
-
+        chat_messages = [{"role": "system", "content": conv_system_msg}] + messages
+    else:
+        chat_messages = messages
+        
     worker_addr = random.choice(worker_addrs)
     
     client = openai.OpenAI(

@@ -7,8 +7,8 @@ import psutil
 import hashlib
 import subprocess
 from functools import partial
-from .utils import generation_cache_wrapper, retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError, max_retry_wrapper  
-from .cache.cache_utils import get_batch_cache_dir
+from .utils import retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError, max_retry_wrapper  
+from .cache import get_batch_cache_dir, generation_cache_wrapper
 from typing import Union, List
 from tqdm import tqdm
 
@@ -159,7 +159,7 @@ def get_call_worker_func(
     call_model_worker = partial(call_model_worker, model_name=model_name)
     # test local worker connection
     if not completion:
-        test_response = call_model_worker(["Hello"], temperature=0, max_tokens=256, timeout=None)
+        test_response = call_model_worker([{"role": "user", "content": "Hello"}], temperature=0, max_tokens=256, timeout=None)
     else:
         test_response = call_model_worker("Hello", temperature=0, max_tokens=256, timeout=None)
     if not test_response:
@@ -322,6 +322,9 @@ class LLMEngine:
         self.model_name = model_name
         available_gpu_ids = self.get_available_gpu_ids()
         if engine in ["vllm", "sglang"]:
+            if not num_gpu_per_worker:
+                print("Warning: num_gpu_per_worker not provided, using 1 GPU per worker")
+                num_gpu_per_worker = 1
             num_required_gpus = num_workers * num_gpu_per_worker
             if len(available_gpu_ids) < num_required_gpus:
                 print("Error: No available GPU to launch the model worker")

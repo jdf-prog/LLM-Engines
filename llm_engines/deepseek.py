@@ -14,11 +14,10 @@ from tqdm import tqdm
 # no image, multi-turn, do not use deepseek_generate, but can refer to it
 def call_worker_deepseek(messages:List[str], model_name, timeout:int=60, conv_system_msg=None, **generate_kwargs) -> str:
     # change messages to openai format
-    new_messages = []
     if conv_system_msg:
-        new_messages.append({"role": "system", "content": conv_system_msg})
-    for i, message in enumerate(messages):
-        new_messages.append({"role": "user" if i % 2 == 0 else "assistant", "content": message})
+        new_messages = [{"role": "system", "content": conv_system_msg}] + messages
+    else:
+        new_messages = messages
     # initialize openai client
     client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com")
     # call deepseek

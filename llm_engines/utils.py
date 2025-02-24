@@ -5,11 +5,16 @@ import signal
 import os
 import signal
 import json
-import hashlib
 import traceback
 import threading
 import openai
 import inspect
+import base64
+import datetime
+import regex as re
+import requests
+from io import BytesIO
+from PIL import Image
 from pathlib import Path
 from typing import Union, List
 from typing import List
@@ -106,19 +111,44 @@ def convert_messages(messages:Union[List[str], List[dict], str]):
             messages = messages[1:]
         else:
             conv_system_msg = None
-        new_messages = []
-        for i, message in enumerate(messages):
-            if i % 2 == 0:
-                assert message["role"] == "user", "User message must be at even index"
-            else:
-                assert message["role"] == "assistant", "Assistant message must be at odd index"
-            new_messages.append(message["content"])
-        return new_messages, conv_system_msg
+        new_messages = messages
     else:
         if isinstance(messages, str):
             messages = [messages]
         assert all(isinstance(item, str) for item in messages)
-        return messages, None
+        new_messages = []
+        for i, message in enumerate(messages):
+            if i % 2 == 0:
+                new_messages.append({"role": "user", "content": message})
+            else:
+                new_messages.append({"role": "assistant", "content": message})
+        conv_system_msg = None
+    
+    # assert the correct format of images
+    for message in new_messages:
+        assert "role" in message, "role key not found in message"
+        assert "content" in message, "content key not found in message"
+        if isinstance(message["content"], str):
+            pass
+        elif isinstance(message["content"], list):
+            for sub_content in message["content"]:
+                assert sub_content["type"] in sub_content, f"'{sub_content['type']}' key not found in sub_content of type {sub_content['type']}"
+                if sub_content["type"] == "text":
+                    assert isinstance(sub_content["text"], str), "text key not found in sub_content"
+                elif sub_content["type"] == "image_url":
+                    assert "url" in sub_content["image_url"] and isinstance(sub_content["image_url"]["url"], str), "url key not found in sub_content['image_url']"
+                elif sub_content["type"] == "image":
+                    assert isinstance(sub_content["image"], Image.Image), "The image key in of 'image' type must be a PIL Image object"
+                    # change image to image_url
+                    sub_content["type"] = "image_url"
+                    sub_content["image_url"] = {"url": encode_base64_image_url(sub_content["image"])}
+                    del sub_content["image"]
+                else:
+                    raise ValueError(f"Unsupported sub_content type: {sub_content['type']}")
+        else:
+            raise ValueError(f"Unsupported content type: {type(message['content'])}")
+    
+    return new_messages, conv_system_msg
 
 def _convert_messages_wrapper(messages:Union[List[str], List[dict], str], call_model_worker, is_completion=False, **generate_kwargs):
     if not is_completion:
@@ -135,60 +165,6 @@ def _convert_messages_wrapper(messages:Union[List[str], List[dict], str], call_m
 def convert_messages_wrapper(call_model_worker, is_completion=False):
     return partial(_convert_messages_wrapper, call_model_worker=call_model_worker, is_completion=is_completion)
 
-def _generation_cache_wrapper(inputs: Union[str, List[str]], call_model_worker, model_name, cache_dir=None, overwrite_cache=False, **generate_kwargs):
-    cache_dict = load_cache(model_name, cache_dir)
-    
-    conv_system_msg = generate_kwargs.get("conv_system_msg", "")
-    if "n" in generate_kwargs:
-        non_hash_keys = ["timeout", "stream"]
-        inputs_hash = get_inputs_hash(inputs, conv_system_msg, {k: v for k, v in generate_kwargs.items() if k not in non_hash_keys})
-    else:
-        inputs_hash = get_inputs_hash(inputs, conv_system_msg)
-    
-    if not overwrite_cache:
-        cached_value = cache_dict[inputs_hash]
-        if cached_value:
-            if "logprobs" not in generate_kwargs or not generate_kwargs["logprobs"]:
-                return cached_value["output"]
-            elif "logprobs" in cached_value:
-                return cached_value["output"], cached_value["logprobs"]
-    
-    response = call_model_worker(inputs, **generate_kwargs)
-    if isinstance(response, tuple):
-        generated_text, logprobs = response
-    else:
-        generated_text = response
-        logprobs = None
-    cache_item = {
-        "input": inputs,
-        "output": generated_text,
-        "logprobs": logprobs,
-        "model_name": model_name,
-        'tstamp': time.time(),
-        "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
-        "generate_kwargs": generate_kwargs
-    }
-    
-    # cache_dict[inputs_hash] = cache_item
-    
-    cache_file = get_cache_file(model_name, cache_dir)
-    with open(cache_file, "a+") as f:
-        f.write(json.dumps({inputs_hash: cache_item}) + "\n")
-    
-    return response
-
-def generation_cache_wrapper(call_model_worker, model_name, cache_dir=None, overwrite_cache=False):
-    print(f"Using efficient multi-level cache for model {model_name}")
-    if cache_dir is None:
-        env_cache_dir = os.getenv("LLM_ENGINES_CACHE_DIR")
-        if env_cache_dir:
-            cache_dir = Path(env_cache_dir)
-        else:
-            cache_dir = Path(os.path.expanduser(f"~/llm_engines/generation_cache"))
-    print(f"Cache directory: {cache_dir}")
-    load_cache(model_name, cache_dir) # preload cache
-    
-    return partial(_generation_cache_wrapper, call_model_worker=call_model_worker, model_name=model_name, cache_dir=cache_dir, overwrite_cache=overwrite_cache)
 class MaxRetriesExceededError(Exception):
     pass
 
@@ -276,3 +252,40 @@ def get_function_arg_names(func):
             arg_names.append(name)
     
     return arg_names, kwarg_names
+
+def encode_base64_image(image:Image.Image, image_format="PNG") -> str:
+    im_file = BytesIO()
+    image.save(im_file, format=image_format)
+    im_bytes = im_file.getvalue()
+    im_64 = base64.b64encode(im_bytes).decode("utf-8")
+    return im_64
+
+def encode_base64_image_url(image:Image.Image, image_format="PNG") -> str:
+    return f"data:image/{image_format};base64,{encode_base64_image(image, image_format)}"
+
+def decode_base64_image_url(base64_uri:str) -> Image.Image:
+    # Split the URI to get the base64 data
+    try:
+        # Remove the "data:image/format;base64," prefix
+        header, base64_data = base64_uri.split(',', 1)
+        # Get image format from header
+        image_format = header.split('/')[1].split(';')[0]
+        # Decode base64 string
+        image_data = base64.b64decode(base64_data)
+        # Create image from binary data
+        image = Image.open(BytesIO(image_data))
+        return image
+    except Exception as e:
+        raise ValueError(f"Failed to decode base64 image: {str(e)}")
+    
+def is_base64_image_url(base64_uri:str) -> bool:
+    return base64_uri.startswith("data:image/")
+
+def load_image(image_path:str) -> Image.Image:
+    # either http or local file path
+    if image_path.startswith("http"):
+        response = requests.get(image_path)
+        image = Image.open(BytesIO(response.content)).convert("RGB")
+    else:
+        image = Image.open(image_path).convert("RGB")
+    return image
