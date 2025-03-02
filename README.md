@@ -249,7 +249,7 @@ print(response)
 ```
 
 ### Sleep Mode
-We support vllm's sleep mode if you want to save the GPU resources when the model is not used.
+We support vllm's sleep mode if you want to save the GPU resources when the model is not used. (should have `vllm>=0.7.3`)
 ```python
 import time
 from llm_engines import LLMEngine
