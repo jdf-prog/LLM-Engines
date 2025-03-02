@@ -5,7 +5,9 @@ import random
 import atexit
 import psutil
 import hashlib
+import requests
 import subprocess
+from packaging import version
 from functools import partial
 from .utils import retry_on_failure, convert_messages_wrapper, SubprocessMonitor, MaxRetriesExceededError, max_retry_wrapper  
 from .cache import get_batch_cache_dir, generation_cache_wrapper
@@ -26,7 +28,7 @@ def set_verbose(value):
     global verbose
     verbose = value
     
-class ModelWorker:
+class WorkerInstance:
     def __init__(self, model_name, worker_addr, proc, gpu_ids=None):
         self.model_name = model_name
         self.worker_addr = worker_addr
@@ -34,158 +36,225 @@ class ModelWorker:
         self.gpu_ids = gpu_ids
     
     def __str__(self):
-        return f"ModelWorker(model_name={self.model_name}, worker_addr={self.worker_addr}, proc={self.proc}, gpu_ids={self.gpu_ids})"
+        return f"WorkerInstance(model_name={self.model_name}, worker_addr={self.worker_addr}, proc={self.proc}, gpu_ids={self.gpu_ids})"
     
     def __repr__(self):
         return self.__str__()
-    
-def get_call_worker_func(
-    model_name, 
-    worker_addrs=None, 
-    cache_dir=None, 
-    use_cache=True,
-    overwrite_cache=False,
-    completion=False, 
-    num_workers=1,
-    num_gpu_per_worker=None,
-    gpu_ids=None,
-    dtype="auto",
-    quantization=None,
-    engine="vllm",
-    additional_args=[],
-    max_retry=None,
-    verbose=False,
-    return_worker=False,
-) -> str:
-    """
-    Return a function that calls the model worker, takes a list of messages (user, gpt, user, ...) and returns the generated text
-    Args:
-        model_name: model name
-        worker_addrs: worker addresses, if None, launch local workers
-        cache_dir: cache directory
-        use_cache: use cache or not. Cache is on the hash of the input message.
-        overwrite_cache: overwrite cache or not. If True, previous cache will be overwritten.
-        completion: use completion or not (use chat by default)
-        num_workers: number of workers
-        num_gpu_per_worker: number of gpus per worker
-        dtype: data type
-        engine: engine name
-        additional_args: additional arguments for launching the worker (vllm, sglang)
-    """
-    loaded_wokers = []
-    if engine == "openai":
-        from .openai_text import call_worker_openai, call_worker_openai_completion
-        call_model_worker = call_worker_openai if not completion else call_worker_openai_completion
-    elif engine == "gemini":
-        if completion:
-            raise ValueError(f"Engine {engine} does not support completion")
-        from .gemini import call_worker_gemini
-        call_model_worker = call_worker_gemini
-    elif engine == "claude":
-        if completion:
-            raise ValueError(f"Engine {engine} does not support completion")
-        from .claude import call_worker_claude
-        call_model_worker = call_worker_claude
-    elif engine == "mistral":
-        if completion:
-            raise ValueError(f"Engine {engine} does not support completion")
-        from .mistral import call_worker_mistral
-        call_model_worker = call_worker_mistral
-    elif engine == "together":
-        from .together import call_worker_together, call_worker_together_completion
-        call_model_worker = call_worker_together if not completion else call_worker_together_completion
-    elif engine == "grok":
-        from .grok import call_worker_grok, call_worker_grok_completion
-        call_model_worker = call_worker_grok if not completion else call_worker_grok_completion 
-    elif engine == "fireworks":
-        from .fireworks import call_worker_fireworks, call_worker_fireworks_completion
-        call_model_worker = call_worker_fireworks if not completion else call_worker_fireworks_completion
-    elif engine in ["vllm", "sglang"]:
-        assert num_gpu_per_worker is not None, "num_gpu_per_worker must be provided for vllm and sglang"
-        if engine == "vllm":
-            from .vllm import launch_vllm_worker, call_vllm_worker, call_vllm_worker_completion
-            call_worker_func = call_vllm_worker if not completion else call_vllm_worker_completion
-            launch_worker_func = launch_vllm_worker
-        elif engine == "sglang":
-            from .sglang import launch_sglang_worker, call_sglang_worker, call_sglang_worker_completion
-            call_worker_func = call_sglang_worker if not completion else call_sglang_worker_completion
-            launch_worker_func = launch_sglang_worker
+
+
+class ModelWorker:
+    def __init__(
+        self,
+        model_name, 
+        worker_addrs=None, 
+        cache_dir=None, 
+        use_cache=True,
+        overwrite_cache=False,
+        completion=False, 
+        num_workers=1,
+        num_gpu_per_worker=None,
+        gpu_ids=None,
+        dtype="auto",
+        quantization=None,
+        engine="vllm",
+        additional_args=[],
+        max_retry=None,
+        verbose=False,
+    ):
+        """
+        Return a function that calls the model worker, takes a list of messages (user, gpt, user, ...) and returns the generated text
+        Args:
+            model_name: model name
+            worker_addrs: worker addresses, if None, launch local workers
+            cache_dir: cache directory
+            use_cache: use cache or not. Cache is on the hash of the input message.
+            overwrite_cache: overwrite cache or not. If True, previous cache will be overwritten.
+            completion: use completion or not (use chat by default)
+            num_workers: number of workers
+            num_gpu_per_worker: number of gpus per worker
+            dtype: data type
+            engine: engine name
+            additional_args: additional arguments for launching the worker (vllm, sglang)
+        """
+        self.model_name = model_name
+        self.worker_addrs = worker_addrs
+        self.cache_dir = cache_dir
+        self.use_cache = use_cache
+        self.overwrite_cache = overwrite_cache
+        self.completion = completion
+        self.num_workers = num_workers
+        self.num_gpu_per_worker = num_gpu_per_worker
+        self.gpu_ids = gpu_ids
+        self.dtype = dtype
+        self.quantization = quantization
+        self.engine = engine
+        self.additional_args = additional_args
+        self.max_retry = max_retry
+        self.verbose = verbose
+        self.worker_instances = [] # cuda workers instances
+        self.is_sleeping = False
+        
+        if engine == "openai":
+            from .openai_text import call_worker_openai, call_worker_openai_completion
+            call_model_worker = call_worker_openai if not completion else call_worker_openai_completion
+        elif engine == "gemini":
+            if completion:
+                raise ValueError(f"Engine {engine} does not support completion")
+            from .gemini import call_worker_gemini
+            call_model_worker = call_worker_gemini
+        elif engine == "claude":
+            if completion:
+                raise ValueError(f"Engine {engine} does not support completion")
+            from .claude import call_worker_claude
+            call_model_worker = call_worker_claude
+        elif engine == "mistral":
+            if completion:
+                raise ValueError(f"Engine {engine} does not support completion")
+            from .mistral import call_worker_mistral
+            call_model_worker = call_worker_mistral
+        elif engine == "together":
+            from .together import call_worker_together, call_worker_together_completion
+            call_model_worker = call_worker_together if not completion else call_worker_together_completion
+        elif engine == "grok":
+            from .grok import call_worker_grok, call_worker_grok_completion
+            call_model_worker = call_worker_grok if not completion else call_worker_grok_completion 
+        elif engine == "fireworks":
+            from .fireworks import call_worker_fireworks, call_worker_fireworks_completion
+            call_model_worker = call_worker_fireworks if not completion else call_worker_fireworks_completion
+        elif engine in ["vllm", "sglang"]:
+            assert num_gpu_per_worker is not None, "num_gpu_per_worker must be provided for vllm and sglang"
+            if engine == "vllm":
+                from .vllm import launch_vllm_worker, call_vllm_worker, call_vllm_worker_completion
+                call_worker_func = call_vllm_worker if not completion else call_vllm_worker_completion
+                launch_worker_func = launch_vllm_worker
+            elif engine == "sglang":
+                from .sglang import launch_sglang_worker, call_sglang_worker, call_sglang_worker_completion
+                call_worker_func = call_sglang_worker if not completion else call_sglang_worker_completion
+                launch_worker_func = launch_sglang_worker
+            else:
+                raise ValueError(f"Internal error: engine {engine} not supported")
+            if worker_addrs is None:
+                import torch
+                
+                print(f"Launching model worker {model_name} locally")
+                worker_addrs = []
+                total_gpus = torch.cuda.device_count()
+                if gpu_ids:
+                    gpu_ids = [int(gpu_id) for gpu_id in gpu_ids]
+                    assert len(gpu_ids) <= total_gpus, f"Error: number of gpus {len(gpu_ids)} is greater than total gpus {total_gpus}"
+                    total_gpus = len(gpu_ids)
+                if total_gpus < num_workers * num_gpu_per_worker:
+                    if total_gpus >= num_gpu_per_worker:
+                        print(f"Warning: total gpus ({total_gpus}) is less than num_workers * num_gpu_per_worker ({num_workers * num_gpu_per_worker}), using {total_gpus // num_gpu_per_worker} workers instead")
+                        num_workers = total_gpus // num_gpu_per_worker
+                    else:
+                        print(f"Error: total gpus ({total_gpus}) is less than num_gpu_per_worker ({num_gpu_per_worker}), exiting...")
+                        sys.exit(1)
+                if not gpu_ids:
+                    if os.environ.get("CUDA_VISIBLE_DEVICES") is not None:
+                        gpus_ids = os.environ.get("CUDA_VISIBLE_DEVICES").split(",")
+                        gpu_ids = [int(gpu_id) for gpu_id in gpus_ids]
+                    else:
+                        gpu_ids = list(range(total_gpus))
+                start_port = random.randint(31000, 32000)
+                for i in range(num_workers):
+                    worker_addr, proc = launch_worker_func(model_name, 
+                        num_gpus=num_gpu_per_worker, 
+                        gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker], 
+                        port=start_port+i*10,
+                        dtype=dtype, quantization=quantization, additional_args=additional_args)
+                    worker = WorkerInstance(model_name, worker_addr, proc, gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker])
+                    worker_addrs.append(worker_addr)
+                    all_workers.append(worker)
+                    self.worker_instances.append(worker)
+            else:
+                if verbose:
+                    print(f"Using existing worker at {worker_addrs}")
+                if not isinstance(worker_addrs, list):
+                    worker_addrs = [worker_addr]
+            call_model_worker = partial(call_worker_func, worker_addrs=worker_addrs)   
+            self.worker_addrs = worker_addrs
+            self.gpu_ids = gpu_ids
         else:
-            raise ValueError(f"Internal error: engine {engine} not supported")
-        if worker_addrs is None:
-            import torch
-            
-            print(f"Launching model worker {model_name} locally")
-            worker_addrs = []
-            total_gpus = torch.cuda.device_count()
-            if gpu_ids:
-                gpu_ids = [int(gpu_id) for gpu_id in gpu_ids]
-                assert len(gpu_ids) <= total_gpus, f"Error: number of gpus {len(gpu_ids)} is greater than total gpus {total_gpus}"
-                total_gpus = len(gpu_ids)
-            if total_gpus < num_workers * num_gpu_per_worker:
-                if total_gpus >= num_gpu_per_worker:
-                    print(f"Warning: total gpus ({total_gpus}) is less than num_workers * num_gpu_per_worker ({num_workers * num_gpu_per_worker}), using {total_gpus // num_gpu_per_worker} workers instead")
-                    num_workers = total_gpus // num_gpu_per_worker
-                else:
-                    print(f"Error: total gpus ({total_gpus}) is less than num_gpu_per_worker ({num_gpu_per_worker}), exiting...")
-                    sys.exit(1)
-            if not gpu_ids:
-                if os.environ.get("CUDA_VISIBLE_DEVICES") is not None:
-                    gpus_ids = os.environ.get("CUDA_VISIBLE_DEVICES").split(",")
-                    gpu_ids = [int(gpu_id) for gpu_id in gpus_ids]
-                else:
-                    gpu_ids = list(range(total_gpus))
-            start_port = random.randint(31000, 32000)
-            for i in range(num_workers):
-                worker_addr, proc = launch_worker_func(model_name, 
-                    num_gpus=num_gpu_per_worker, 
-                    gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker], 
-                    port=start_port+i*10,
-                    dtype=dtype, quantization=quantization, additional_args=additional_args)
-                worker = ModelWorker(model_name, worker_addr, proc, gpu_ids=gpu_ids[i*num_gpu_per_worker:(i+1)*num_gpu_per_worker])
-                worker_addrs.append(worker_addr)
-                all_workers.append(worker)
-                loaded_wokers.append(worker)
+            raise ValueError(f"Engine {engine} not supported, available engines: {ENGINES}")
+        
+        # wrap the call_model_worker with the model_name and other arguments
+        call_model_worker = partial(call_model_worker, model_name=model_name)
+        # test local worker connection
+        if not completion:
+            test_response = call_model_worker([{"role": "user", "content": "Hello"}], temperature=0, max_tokens=256, timeout=None)
+        else:
+            test_response = call_model_worker("Hello", temperature=0, max_tokens=256, timeout=None)
+        if not test_response:
+            print("Error: failed to connect to the worker, exiting...")
+            for worker in self.worker_instances:
+                cleanup_process(worker)
+            sys.exit(1)
         else:
             if verbose:
-                print(f"Using existing worker at {worker_addrs}")
-            if not isinstance(worker_addrs, list):
-                worker_addrs = [worker_addr]
-        call_model_worker = partial(call_worker_func, worker_addrs=worker_addrs)        
-    else:
-        raise ValueError(f"Engine {engine} not supported, available engines: {ENGINES}")
-    
-    # wrap the call_model_worker with the model_name and other arguments
-    call_model_worker = partial(call_model_worker, model_name=model_name)
-    # test local worker connection
-    if not completion:
-        test_response = call_model_worker([{"role": "user", "content": "Hello"}], temperature=0, max_tokens=256, timeout=None)
-    else:
-        test_response = call_model_worker("Hello", temperature=0, max_tokens=256, timeout=None)
-    if not test_response:
-        print("Error: failed to connect to the worker, exiting...")
-        for worker in loaded_wokers:
-            cleanup_process(worker)
-        sys.exit(1)
-    else:
-        if verbose:
-            print(f"Successfully connected to the workers")
-            print("Test prompt: \n", "Hello")
-            print("Test response: \n", test_response)
+                print(f"Successfully connected to the workers")
+                print("Test prompt: \n", "Hello")
+                print("Test response: \n", test_response)
+            
+        # add cache wrapper
+        if use_cache:
+            call_model_worker = generation_cache_wrapper(call_model_worker, model_name, cache_dir, overwrite_cache)
+        else:
+            if verbose:
+                print("Cache is disabled")
+        call_model_worker = retry_on_failure(call_model_worker, num_retries=max_retry)
+        call_model_worker = convert_messages_wrapper(call_model_worker, is_completion=completion)
+        set_do_cleanup(True)
+        set_verbose(verbose)
+        self.call_model_worker = call_model_worker
         
-    # add cache wrapper
-    if use_cache:
-        call_model_worker = generation_cache_wrapper(call_model_worker, model_name, cache_dir, overwrite_cache)
-    else:
-        if verbose:
-            print("Cache is disabled")
-    call_model_worker = retry_on_failure(call_model_worker, num_retries=max_retry)
-    call_model_worker = convert_messages_wrapper(call_model_worker, is_completion=completion)
-    set_do_cleanup(True)
-    set_verbose(verbose)
-    if return_worker:
-        return call_model_worker, loaded_wokers
-    return call_model_worker
+    def __call__(
+        self,
+        messages:Union[str, List[str], List[dict]],
+        *args, **kwds
+    ):
+        if self.is_sleeping:
+            print("Warning: Worker is sleeping, waking up...")
+            self.wake_up_worker()
+        return self.call_model_worker(messages, *args, **kwds)
+    
+    def sleep_worker(self, level=1):
+        if self.engine in ["vllm"]:
+            # vllm version should be >= 0.7.3
+            from .vllm import vllm_version
+            if version.parse(vllm_version) < version.parse("0.7.3"):
+                raise ValueError(f"vllm version {vllm_version} does not support sleep mode, please upgrade to >= 0.7.3")
+            for worker in self.worker_instances:
+                response = requests.post(worker.worker_addr + "/sleep",
+                                    data={"level": level})
+                print(worker.worker_addr + "/sleep")
+                print(response)
+                assert response.status_code == 200
+                print(f"Worker {worker} is sleeping")
+            self.is_sleeping = True
+        elif self.engine in ["sglang"]:
+            raise NotImplementedError(f"Engine {self.engine} does not support sleep")
+            
+    def wake_up_worker(self):
+        if not self.is_sleeping:
+            return
+        if self.engine in ["vllm"]:
+            # vllm version should be >= 0.7.3
+            from .vllm import vllm_version
+            if version.parse(vllm_version) < version.parse("0.7.3"):
+                raise ValueError(f"vllm version {vllm_version} does not support sleep mode, please upgrade to >= 0.7.3")
+            for worker in self.worker_instances:
+                response = requests.post(worker.worker_addr + "/wake_up")
+                assert response.status_code == 200
+                print(f"Worker {worker} is woken up")
+        elif self.engine in ["sglang"]:
+            raise NotImplementedError(f"Engine {self.engine} does not support wake up")
+    
+    def __str__(self):
+        return f"ModelWorker(model_name={self.model_name}, num_workers={self.num_workers}, num_gpu_per_worker={self.num_gpu_per_worker}, worker_addrs={self.worker_addrs}, cache_dir={self.cache_dir}, use_cache={self.use_cache}, overwrite_cache={self.overwrite_cache}, completion={self.completion}, dtype={self.dtype}, quantization={self.quantization}, engine={self.engine}, additional_args={self.additional_args}, max_retry={self.max_retry}, verbose={self.verbose})"
+    
+    def __repr__(self):
+        return self.__str__()
 
 
 do_cleanup = True
@@ -219,10 +288,12 @@ def kill_process_and_children(pid):
         print(f"Parent process {pid} already terminated.")
     return True
         
-def cleanup_process(worker:Union[ModelWorker, SubprocessMonitor, subprocess.Popen]):
-    # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-    # os.kill(proc.pid, signal.SIGTERM)
+def cleanup_process(worker:Union[ModelWorker, WorkerInstance, SubprocessMonitor, subprocess.Popen]):
     if isinstance(worker, ModelWorker):
+        for worker_instance in worker.worker_instances:
+            cleanup_process(worker_instance)
+        return
+    if isinstance(worker, WorkerInstance):
         proc = worker.proc.proc
     elif isinstance(worker, SubprocessMonitor):
         proc = worker.proc
@@ -250,8 +321,7 @@ class LLMEngine:
     
     def __init__(self, verbose=False, num_gpus: int = None, gpu_ids: Union[List[int], str] = None):
         self.workers = []
-        self.loaded_model_call_func = {}
-        self.loaded_model_engine_map = {}
+        self.loaded_model_worker = {}
         import torch
         self.verbose = verbose
         total_gpus = torch.cuda.device_count()
@@ -278,7 +348,8 @@ class LLMEngine:
     def get_available_gpu_ids(self):
         worker_used_gpu_ids = []
         for worker in self.workers:
-            worker_used_gpu_ids.extend(worker.gpu_ids)
+            for worker_instance in worker.worker_instances:
+                worker_used_gpu_ids.extend(worker_instance.gpu_ids)
         available_gpu_ids = [gpu_id for gpu_id in self.gpu_ids if gpu_id not in worker_used_gpu_ids]
         return available_gpu_ids
     
@@ -329,7 +400,7 @@ class LLMEngine:
             if len(available_gpu_ids) < num_required_gpus:
                 print("Error: No available GPU to launch the model worker")
                 print("Provided GPU IDs for this LLMEngine class: ", self.gpu_ids)
-                print("Used GPU IDs for all workers: ", [worker.gpu_ids for worker in self.workers])
+                print("Used GPU IDs for all workers: ", [worker_instance.gpu_ids for worker in self.workers for worker_instance in worker.worker_instances])
                 print("Available GPU IDs: ", available_gpu_ids)
                 print("Number of required GPUs: ", num_required_gpus)
                 raise ValueError("Not enought available GPU to launch the model worker")
@@ -337,8 +408,8 @@ class LLMEngine:
         else:
             num_required_gpus = num_workers
             gpu_ids = None
-        
-        call_model_worker, model_workers = get_call_worker_func(
+            
+        model_worker = ModelWorker(
             model_name, 
             worker_addrs=worker_addrs, 
             cache_dir=cache_dir, 
@@ -354,13 +425,25 @@ class LLMEngine:
             additional_args=additional_args,
             max_retry=max_retry,
             verbose=verbose,
-            return_worker=True,
         )
+        self.workers.append(model_worker)
+        self.loaded_model_worker[model_name] = model_worker
+        return model_worker
 
-        self.workers.extend(model_workers)
-        self.loaded_model_call_func[model_name] = call_model_worker
-        self.loaded_model_engine_map[model_name] = engine
-        return call_model_worker
+    def sleep_model(
+        self,
+        model_name,
+        level=1
+    ):
+        model_worker = self.loaded_model_worker.get(model_name)
+        model_worker.sleep_worker(level=level)
+        
+    def wake_up_model(
+        self,
+        model_name,
+    ):
+        model_worker = self.loaded_model_worker.get(model_name)
+        model_worker.wake_up_worker()
     
     def call_model(
         self, 
@@ -379,7 +462,7 @@ class LLMEngine:
             conv_system_msg: conversation system message
             generate_kwargs: generation arguments
         """
-        call_model_worker = self.loaded_model_call_func.get(model_name)
+        call_model_worker = self.loaded_model_worker.get(model_name)
         if call_model_worker is None:
             raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
         try:
@@ -411,10 +494,10 @@ class LLMEngine:
             generate_kwargs: generation arguments
         """
         supported_batch_api_engines = ["openai", "claude"]
-        call_model_worker = self.loaded_model_call_func.get(model_name)
-        engine = self.loaded_model_engine_map.get(model_name)
+        model_worker = self.loaded_model_worker.get(model_name)
+        engine = model_worker.engine
         if engine not in supported_batch_api_engines or disable_batch_api:
-            if call_model_worker is None:
+            if model_worker is None:
                 raise ValueError(f"Model {model_name} not loaded, please call load_model() first")
             
             batch_cache_dir = get_batch_cache_dir(model_name, None)
@@ -435,10 +518,10 @@ class LLMEngine:
                 from functools import partial
                 from multiprocessing import Pool
                 num_proc = min(num_proc, len(batch_messages))
-                call_model_worker_mp = partial(call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
-                call_model_worker_mp = partial(max_retry_wrapper, call_model_worker_mp)
+                model_worker_mp = partial(model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+                model_worker_mp = partial(max_retry_wrapper, model_worker_mp)
                 with Pool(num_proc) as p:
-                    results = list(tqdm(p.imap(call_model_worker_mp, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
+                    results = list(tqdm(p.imap(model_worker_mp, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
                 if results:
                     for i, message in enumerate(to_write_batch_messages):
                         message["output"] = results[i]

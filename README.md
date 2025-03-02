@@ -248,6 +248,28 @@ response = llm.call_model(model_name, messages_with_image_url, temperature=0.0, 
 print(response)
 ```
 
+### Sleep Mode
+We support vllm's sleep mode if you want to save the GPU resources when the model is not used.
+```python
+import time
+from llm_engines import LLMEngine
+model_name="meta-llama/Meta-Llama-3-8B-Instruct"
+llm = LLMEngine()
+llm.load_model(
+    model_name=model_name,
+    num_workers=1, # number of workers
+    num_gpu_per_worker=1, # tensor parallelism size for each worker
+    engine="vllm", # or "sglang"
+    use_cache=False
+)
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
+print(response)
+llm.sleep_model(model_name) # sleep all the instances that named model_name
+time.sleep(20) # check your GPU usage, it should be almost 0
+llm.wake_up_model(model_name) # wake up all the instances that named model_name
+response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
+```
+
 ### Batch inference
 ```python
 from llm_engines import LLMEngine

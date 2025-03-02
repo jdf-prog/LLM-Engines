@@ -12,7 +12,7 @@ from typing import List
 from .utils import SubprocessMonitor, ChatTokenizer, with_timeout, get_function_arg_names
 from huggingface_hub import HfApi, hf_hub_download, snapshot_download
 worker_initiated = False
-
+vllm_version = vllm.__version__
 
 chat_tokenizers = {}
 def launch_vllm_worker(
@@ -51,6 +51,7 @@ def launch_vllm_worker(
         env["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
     else:
         env["VLLM_ATTENTION_BACKEND"] = "FLASH_ATTN"
+    env["VLLM_SERVER_DEV_MODE"] = "1"
     # print(num_gpus, gpu_ids)
     
     model_path = Path(model_name)
@@ -122,6 +123,7 @@ def launch_vllm_worker(
         "--tensor-parallel-size", str(num_gpus),
         "--disable-log-requests",
         "--trust-remote-code",
+        "--enable-sleep-mode",
     ] + (["--root-path", root_path] if root_path else [])
     + lora_args + additional_args, env=env)
     print(f"Launched VLLM model {model_name} at address {worker_addr} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")

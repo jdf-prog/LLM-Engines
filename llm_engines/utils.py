@@ -200,7 +200,6 @@ def _retry_on_failure(*args, call_model_worker=None, num_retries=5, **kwargs):
     
 def retry_on_failure(call_model_worker, num_retries=5):
     return partial(_retry_on_failure, call_model_worker=call_model_worker, num_retries=num_retries)
-    return wrapper
 
 def timeout_handler(signum, frame):
     raise TimeoutError("Function call timed out")
