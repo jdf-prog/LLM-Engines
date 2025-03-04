@@ -9,9 +9,10 @@ For example, the outputs of a single model using 3 enginer (VLLM, SGLang, Togeth
 Try examples below to see the outputs of different engines.
 
 ## News
-- 2025-02-18: Add support for `grok` models.
-- 2025-02-19: Add support for `fireworks` api services, which provide calling for deepseek-r1 models with high speed.
+- 2025-03-03: support `sleep` for vllm models, see [Sleep Mode](#sleep-mode) for more details.
 - 2025-02-23: Support for vision input for all engines. See [Vision Input](#vision-input) for more details.
+- 2025-02-19: Add support for `fireworks` api services, which provide calling for deepseek-r1 models with high speed.
+- 2025-02-18: Add support for `grok` models.
 
 ## Installation
     
@@ -33,7 +34,7 @@ pip install flash-attn --no-build-isolation
 - use vllm or sglang 
 ```python
 from llm_engines import LLMEngine
-model_name="meta-llama/Meta-Llama-3-8B-Instruct"
+model_name="Qwen/Qwen2.5-0.5B-Instruct"
 llm = LLMEngine()
 llm.load_model(
     model_name=model_name,
@@ -162,10 +163,10 @@ llm.unload_model() # unload all the workers
 ### Multi-turn conversation
 ```python
 from llm_engines import LLMEngine
-model_name="meta-llama/Meta-Llama-3-8B-Instruct"
+model_name="Qwen/Qwen2.5-0.5B-Instruct"
 llm = LLMEngine()
 llm.load_model(
-    model_name="meta-llama/Meta-Llama-3-8B-Instruct", 
+    model_name="Qwen/Qwen2.5-0.5B-Instruct", 
     num_workers=1, # number of workers
     num_gpu_per_worker=1, # tensor parallelism size for each worker
     engine="vllm", # or "sglang"
@@ -253,7 +254,7 @@ We support vllm's sleep mode if you want to save the GPU resources when the mode
 ```python
 import time
 from llm_engines import LLMEngine
-model_name="meta-llama/Meta-Llama-3-8B-Instruct"
+model_name="Qwen/Qwen2.5-0.5B-Instruct"
 llm = LLMEngine()
 llm.load_model(
     model_name=model_name,
@@ -273,10 +274,10 @@ response = llm.call_model(model_name, "What is the capital of France?", temperat
 ### Batch inference
 ```python
 from llm_engines import LLMEngine
-model_name="meta-llama/Meta-Llama-3-8B-Instruct"
+model_name="Qwen/Qwen2.5-0.5B-Instruct"
 llm = LLMEngine()
 llm.load_model(
-    model_name="meta-llama/Meta-Llama-3-8B-Instruct", 
+    model_name="Qwen/Qwen2.5-0.5B-Instruct", 
     num_workers=1, # number of workers
     num_gpu_per_worker=1, # tensor parallelism size for each worker
     engine="vllm", # or "sglang"
@@ -333,7 +334,7 @@ prompt = self.tokenizer.apply_chat_template(
 There will be errors if the model does not support the chat template. 
 
 ### Worker initialization parameters (`load_model`)
-- `model_name`: the model name, e.g., "meta-llama/Meta-Llama-3-8B-Instruct" (required)
+- `model_name`: the model name, e.g., "Qwen/Qwen2.5-0.5B-Instruct" (required)
 - `worker_addrs`: the list of worker addresses to use, if not provided, a new worker will be launched. If provided, it will use the existing workers (default: None)
 - `num_workers`: the number of workers to use for the model (default: 1)
 - `num_gpu_per_worker`: the number of GPUs to use for each worker (default: None)
@@ -384,7 +385,7 @@ CUDA_VISIBLE_DEVICES=1 python -m sglang.launch_server --model-path meta-llama/Me
 ```python
 from llm_engines import get_call_worker_func
 call_worker_func = get_call_worker_func(
-    model_name="meta-llama/Meta-Llama-3-8B-Instruct", 
+    model_name="Qwen/Qwen2.5-0.5B-Instruct", 
     worker_addrs=["http://127.0.0.1:34200", "http://127.0.0.1:34201"], # many workers can be used, will be load balanced
     engine="sglang", 
     use_cache=False
