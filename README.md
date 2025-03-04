@@ -287,7 +287,7 @@ batch_messages = [
     "Hello! It's nice to meet you. Is there something I can help you with, or would you like to chat?", # previous model response
     "What is the capital of France?" # user message
 ] * 100
-response = llm.batch_call_model(model_name, messages, num_proc=32, temperature=0.0, max_tokens=None)
+response = llm.batch_call_model(model_name, batch_messages, num_proc=32, temperature=0.0, max_tokens=None)
 print(response)
 # List of responses [response1, response2, ...]
 ```

@@ -20,7 +20,6 @@ def call_worker_grok(messages:List[str], model_name, timeout:int=60, conv_system
     else:
         new_messages = messages
     # initialize openai client
-    print(get_printable_messages(new_messages))
     client = OpenAI(api_key=os.environ["XAI_API_KEY"], base_url="https://api.x.ai/v1")
     # call grok
     completion = client.chat.completions.create(
@@ -56,7 +55,6 @@ def call_worker_grok_completion(prompt:str, model_name, timeout:int=60, **genera
     # initialize openai client
     client = OpenAI(api_key=os.environ["XAI_API_KEY"], base_url="https://api.x.ai/v1")
     # call grok
-    print(generate_kwargs)
     if "max_tokens" not in generate_kwargs:
         generate_kwargs["max_tokens"] = 256 # have to set max_tokens to be explicit
     completion = client.completions.create(

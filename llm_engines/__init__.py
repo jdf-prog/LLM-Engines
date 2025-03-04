@@ -518,10 +518,13 @@ class LLMEngine:
                 from functools import partial
                 from multiprocessing import Pool
                 num_proc = min(num_proc, len(batch_messages))
-                model_worker_mp = partial(model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
-                model_worker_mp = partial(max_retry_wrapper, model_worker_mp)
+                if model_worker.is_sleeping:
+                    print("Warning: Worker is sleeping, waking up...")
+                    model_worker.wake_up_worker()
+                call_model_worker_mp = partial(model_worker.call_model_worker, timeout=timeout, conv_system_msg=conv_system_msg, **generate_kwargs)
+                call_model_worker_mp = partial(max_retry_wrapper, call_model_worker_mp)
                 with Pool(num_proc) as p:
-                    results = list(tqdm(p.imap(model_worker_mp, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
+                    results = list(tqdm(p.imap(call_model_worker_mp, batch_messages), total=len(batch_messages), desc=desc or "LLMEngine Batch Inference"))
                 if results:
                     for i, message in enumerate(to_write_batch_messages):
                         message["output"] = results[i]
