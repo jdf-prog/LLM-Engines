@@ -261,7 +261,8 @@ llm.load_model(
     num_workers=1, # number of workers
     num_gpu_per_worker=1, # tensor parallelism size for each worker
     engine="vllm", # or "sglang"
-    use_cache=False
+    use_cache=False,
+    additional_args=["--enable-sleep-mode"] # enable sleep mode
 )
 response = llm.call_model(model_name, "What is the capital of France?", temperature=0.0, max_tokens=None)
 print(response)

@@ -123,7 +123,7 @@ def launch_vllm_worker(
         "--tensor-parallel-size", str(num_gpus),
         "--disable-log-requests",
         "--trust-remote-code",
-        "--enable-sleep-mode",
+        # "--enable-sleep-mode"
     ] + (["--root-path", root_path] if root_path else [])
     + lora_args + additional_args, env=env)
     print(f"Launched VLLM model {model_name} at address {worker_addr} with CUDA_VISIBLE_DEVICES={env['CUDA_VISIBLE_DEVICES']}")
