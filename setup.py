@@ -28,11 +28,10 @@ setup(
         "numpy",
         "requests",
         "sentencepiece",
-        "vllm>=0.5.5",
+        "vllm",
         "together",
         "icecream",
         "prettytable",
-        "sglang[all]",
         "mistralai",
         "anthropic>=0.36.0",
         "fastapi<=0.112.2",
@@ -41,6 +40,9 @@ setup(
     extras_require={
         "flash-attn": {
             "flash-attn"
+        },
+        "sglang": {
+            "sglang[all]"
         }
     }
 )
