@@ -15,17 +15,20 @@ Try examples below to see the outputs of different engines.
 - 2025-02-18: Add support for `grok` models.
 
 ## Installation
-    
+We recommend to use `uv` to manage the environment due to its fast installation speed.  
 ```bash
-pip install llm-engines # or
+pip install llm-engines # or 
 # pip install git+https://github.com/jdf-prog/LLM-Engines.git
+pip install flash-attn --no-build-isolation
 ```
+If you want to use SGLang, you need to install it separately:
+```bash
+pip install "sglang[all]>=0.4.6.post5"
+```
+
 For development:
 ```bash
 pip install -e . # for development
-# Add ons
-pip install flashinfer -i https://flashinfer.ai/whl/cu121/torch2.4/ # required for sglang
-pip install flash-attn --no-build-isolation
 ```
 
 ## Usage
