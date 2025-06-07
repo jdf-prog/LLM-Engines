@@ -2,7 +2,7 @@ import fire
 import json
 import os
 import datasets
-from llm_engines import get_call_worker_func
+from llm_engines import ModelWorker
 from llm_engines.utils import MaxRetriesExceededError
 
 def main(
@@ -32,7 +32,7 @@ def main(
         print(f"Output file {output_file} exists and overwrite is set to False. Skipping.")
         exit(0)
     else:
-        call_worker = get_call_worker_func(
+        call_worker = ModelWorker(
             model_name=model_name,
             engine=engine,
             worker_addrs=worker_addrs,

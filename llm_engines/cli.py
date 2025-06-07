@@ -56,8 +56,8 @@ class Cli:
         max_tokens: int=None,
         timeout: int=60,
     ) -> str:
-        from . import get_call_worker_func
-        call_worker_func = get_call_worker_func(
+        from . import ModelWorker
+        call_worker_func = ModelWorker(
             model_name=model_name,
             worker_addrs=[worker_addr],
             engine=engine,

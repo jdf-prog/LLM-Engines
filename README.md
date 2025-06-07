@@ -385,16 +385,16 @@ CUDA_VISIBLE_DEVICES=1 python -m sglang.launch_server --model-path meta-llama/Me
 # address: http://127.0.0.1:34201
 ```
 
-- query multiple workers
+- query multiple existing workers
 ```python
-from llm_engines import get_call_worker_func
-call_worker_func = get_call_worker_func(
+from llm_engines import ModelWorker
+call_worker_func = ModelWorker(
     model_name="Qwen/Qwen2.5-0.5B-Instruct", 
     worker_addrs=["http://127.0.0.1:34200", "http://127.0.0.1:34201"], # many workers can be used, will be load balanced
     engine="sglang", 
     use_cache=False
 )
-response = call_worker_func(["What is the capital of France?"], temperature=0.0, max_tokens=None)
+response = ModelWorker(["What is the capital of France?"], temperature=0.0, max_tokens=None)
 print(response)
 # The capital of France is Paris.
 ```
